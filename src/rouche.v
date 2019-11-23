@@ -14,6 +14,60 @@ Open Scope general_if_scope.
 
 Create HintDb derive_compute.
 
+  Open Scope R.
+  Lemma sqrt_lt_left : forall x y, 0 <= x -> 0 <= y -> sqrt x < y <-> x < y^2.
+  Proof.
+    move => x y xge yge; split; move => H.
+    - apply sqrt_lt_0_alt.
+      rewrite /pow. 
+      rewrite Rmult_1_r.
+      rewrite sqrt_square; auto.
+    - pose z := y * y.
+      rewrite -(sqrt_lem_1 z y) /z.
+      2-4: nra.
+      apply sqrt_lt_1_alt; split; nra.
+  Qed.
+
+  Lemma rabs_rewrite : forall x y, Rabs x < y <-> (x < y /\ -y < x).
+  Proof.
+    move => x y; split => H.
+    -  apply Rabs_def2. auto.
+    - apply Rabs_def1; tauto.
+  Qed.
+
+  Lemma le_square : forall x y, 0 <= x -> 0 <= y ->  x < y <-> (x * x < y * y).
+  Proof.
+    move => *; split => H; nra.
+  Qed.
+
+  Lemma abs_sqr: forall x, Rabs x * Rabs x = x * x.
+  Proof.
+    move => x. rewrite -[_ * _]/(Rsqr _). rewrite -Rsqr_abs; auto.
+  Qed.
+
+  Lemma square_in_circle: forall x1 x2 y1 y2 e,
+    0 < e -> 
+    abs (y1 - x1) < e ->
+    abs (y2 - x2) < e ->
+    sqrt((y1 - x1)^2 + (y2 - x2)^2) < 2*e.
+  Proof.
+    move => x1 x2 y1 y2 e epos U V.
+    apply sqrt_lt_left.
+    2: lra.
+    { apply Rplus_le_le_0_compat; apply pow2_ge_0. }
+    move: U V.
+    rewrite le_square //=. 
+    3: nra.
+    2: apply abs_ge_0.
+    move => H1.
+    rewrite le_square //=. 
+    3: nra.
+    2: apply abs_ge_0.
+    move: H1.
+    rewrite /abs //= abs_sqr abs_sqr.
+    nra.
+  Qed.
+
 Ltac auto_derive_all_aux := 
   first [progress eauto with derive_compute | auto_derive]; 
   lra.
@@ -219,20 +273,20 @@ rewrite /scal //=.
 apply mult_one_r.
 Qed.
 
+Definition connected {T:UniformSpace} (D: T -> Prop) := 
+  forall U V : T -> Prop, 
+    (forall z, U z \/ V z <-> D z) -> 
+    open U -> 
+    open V -> 
+    (exists z, U z) ->
+    (exists z, V z) ->
+    (exists z, U z /\ V z)
+  .
 Open Scope fun_scope.
 Open Scope type_scope.
 Definition NtoC (n: nat) := RtoC (INR n).
 
 Section Domain.
-  Definition connected (D: C -> Prop) := 
-    forall U V : C -> Prop, 
-      (forall z, U z \/ V z <-> D z) -> 
-      open U -> 
-      open V -> 
-      (exists z, U z /\ V z) \/ 
-      (forall z, U z <-> False) \/
-      (forall z, V z <-> False)
-    .
               
   Record Domain (D:C -> Prop) := dom {
     open_dom: open D;
@@ -279,69 +333,93 @@ Section Domain.
     dec_DP := _;
   |}.
 
-  Lemma sqrt_lt_left : forall x y, 0 <= x -> 0 <= y -> sqrt x < y <-> x < y^2.
+  Lemma ODisk_open: forall r, (0 < r) -> open (fun z => Cmod z < r).
+
   Proof.
-    move => x y xge yge; split; move => H.
-    - apply sqrt_lt_0_alt.
-      rewrite /pow. 
-      rewrite Rmult_1_r.
-      rewrite sqrt_square; auto.
-    - pose z := (y * y)%R.
-      rewrite -(sqrt_lem_1 z y) /z.
-      2-4: nra.
-      apply sqrt_lt_1_alt; split; nra.
+    rewrite /open /locally => r rpos x zle.
+    rewrite /ball //= /prod_ball //= /ball //= /AbsRing_ball //= .
+    pose proof zle.
+    eexists ?[eps].
+    move => y; case => b1 b2.
+    move: b1 b2 H.
+    have tri: (Cmod y <= Cmod (minus y x) + Cmod (x) ).
+    { have q: (y = plus (minus y x) x); 
+        last by rewrite {1} q; eapply Cmod_triangle.
+      rewrite /minus -plus_assoc plus_opp_l plus_zero_r //=.
+    }
+    move => H1 H2 H3.
+    have to_circ:(Cmod (minus y x) < 2 * ?eps).
+    { apply square_in_circle. 1: shelve. all: auto. }
+    have epslt: (2*?eps < r - Cmod x); first shelve.
+    nra.
+
+
+    Grab Existential Variables.
+    - set e:= (r -Cmod x) / 4.
+      have epos: (e > 0) by (rewrite /e; nra).
+      set e' := mkposreal e epos.
+      instantiate (1 := mkposreal ((r -Cmod x)/4) _ ).
+      simpl.
+      nra.
+    - simpl. nra.
+    Unshelve.
+    nra.
   Qed.
 
-  Lemma rbs_rewrite : forall x y, Rabs x < y <-> (x < y /\ -x < y).
+  Obligation 1: 
+  Proof. apply ODisk_open. lra. Qed.
+
+  Obligation 2.
   Proof.
-    move => x y; split => H.
-    - apply Rabs_def2.
+    rewrite /connected => U V union oU oV.
+    case => x Ux.
+    case => y Vy.
+    pose f:= fun t:R => plus (scal t x) ( scal (1- t)  y).
+    have segment_aux: (forall t: R, 0 < t < 1 -> 
+      Cmod (f t) < r0).
+    { move => t bd.
+      apply (Rle_lt_trans _ (Cmod (scal t x) + Cmod (scal (1-t) y)) _); 
+      first by apply Cmod_triangle.
+      repeat rewrite scal_R_Cmult.
+      repeat rewrite Cmod_mult.
+      repeat rewrite Cmod_R.
+      repeat rewrite Rabs_pos_eq.
+      2,3: nra.
 
-  Obligation 1.
-  Proof.
-    rewrite /open /locally => x zle.
-    set eps := ((r0 - Cmod x)/ 2).
-    have epspos: ( 0 < eps);first by (unfold eps; lra).
-    exists (mkposreal eps epspos).
-    rewrite /ball //= /prod_ball //= /ball //= /AbsRing_ball //= .
-    rewrite /epspos /eps {epspos eps}.
-    move => y; case => b1 b2.
-    move: b1 b2 zle.
-    rewrite /Cmod.
-    rewrite /abs /AbsRing.abs //=.
-    rewrite /minus //= /opp //=.
-    rewrite /plus //= /opp //=.
-    destruct x.
-    destruct y.
-    simpl.
-    repeat rewrite Rmult_1_r.
-    repeat rewrite sqrt_lt_left.
-    2-5: nra.
-    SearchAbout (Rabs _ < _).
-    apply Rabs_def1.
+      have : (Cmod x < r0) by apply union; auto.
+      have : (Cmod y < r0) by apply union; auto.
+      nra.
+    }
+    have f0 : (f 0 = y). 
+    { rewrite /f.
+      rewrite scal_zero_l.
+      rewrite plus_zero_l.
+      rewrite Rminus_0_r.
+      rewrite scal_one.
+      auto.
+    }
+    have f1 : (f 1 = x). 
+    { rewrite /f.
+      rewrite scal_one.
+      rewrite Rcomplements.Rminus_eq_0.
+      rewrite scal_zero_l.
+      rewrite plus_zero_r.
+      auto.
+    }
+    have segement: (forall t: R, 0 <= t <= 1 -> Cmod (f t) < r0).
+    { move => t.
+      case. 
+      case => teq1; case => teq2.
+      - apply segment_aux; lra.
+      - rewrite teq2. rewrite f1. apply union. auto.
+      - rewrite -teq1. rewrite f0. apply union. auto.
+      - rewrite teq2 in teq1. contradict teq1. auto.
+    }
 
-    nra.
-
-
-    move => H2; case => H3 H4.
-    have H5: (r1 * r1 + r2 * r2 < r0^2); first by apply sqrt_lt_left; nra.
-    apply sqrt_lt_left.
- 
-    nra.
-    case => H4 H5.
-    nra.
-    case: x.
-    move => x1 x2 y1 y2.
-    
-    lra.
+    forall (forall t: R
 
 
-    have (ball x )
-
-    
-
-
-  Definition bowl (z: )
+  Qed.
 End Domain.
 
 Section Holo.
