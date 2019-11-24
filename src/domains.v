@@ -64,6 +64,46 @@ Proof.
   nra.
 Qed.
 
+Lemma prod_c_topolog_eq: forall z P,
+  locally (T:=prod_UniformSpace R_UniformSpace R_UniformSpace) z P <->
+  locally (T:=AbsRing_UniformSpace C_AbsRing) z P.
+Proof.
+  move => z P.
+  rewrite /locally //=.
+  SearchAbout posreal.
+  split => H; move: H; case => eps H;
+  [eexists eps | eexists (mkposreal (eps/2) _)] => y bz;
+  apply H;
+  move: bz;
+  rewrite ? /ball //= /prod_ball /ball //= /AbsRing_ball /abs //=;
+  rewrite /Cmod sqrt_lt_left.
+  3,6: pose proof cond_pos eps; nra.
+  2,5: nra.
+  - rewrite -{2 3}(Rabs_right eps) /minus /opp //= /plus //=; 
+    last by pose proof cond_pos eps; nra.
+
+    simpl in *.
+    rewrite ? Rmult_1_r.
+    split; apply Rsqr_lt_abs_0.
+    rewrite /Rsqr; first by eapply (Rplus_lt_reg_pos_r _ _ _ _ H0).
+    rewrite Rplus_comm in H0.
+    eapply (Rplus_lt_reg_pos_r _ _ _ _ H0).
+  - rewrite /minus /opp //= /plus //=.
+    rewrite -{1 2}(Rabs_right (eps/2)) /minus /opp //= /plus //=; 
+    last by pose proof cond_pos eps; nra.
+    case => r1 r2.
+    apply Rsqr_lt_abs_1 in r1.
+    apply Rsqr_lt_abs_1 in r2.
+    SearchAbout (_ < _ -> _ < _ -> _ + _ < _ + _).
+    pose proof (Rplus_lt_compat _ _ _ _ r1 r2).
+    rewrite /Rsqr in H0.
+    nra.
+  - nra.
+
+  Unshelve.
+  1: pose proof cond_pos eps; nra.
+  all: rewrite -? /(Rsqr _); apply Rle_0_sqr.
+Qed.
 
 Section PathConnected .
   Program Definition path_connected {T: UniformSpace} (D: T -> Prop) := 

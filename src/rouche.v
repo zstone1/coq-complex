@@ -201,10 +201,49 @@ Proof.
     auto_derive_all.
 Qed.
 
+Ltac proj_proof eps := 
+   apply (filter_imp (fun _ => True)); 
+   [
+   move => z _;
+   rewrite {2}/minus;
+   rewrite minus_eq_zero;
+   rewrite norm_zero;
+   apply Rmult_le_pos;
+     [ pose proof cond_pos eps; nra
+     | apply norm_ge_0 ]
+   |by apply filter_true]
+  .
+Lemma filterdiff_fst: forall 
+  {K: AbsRing}
+  {V1 V2: NormedModule K} 
+  (F: (V1*V2 -> Prop) -> Prop)
+  {FF : Filter F},
+  filterdiff (K:=K) fst F fst.
+Proof.
+  rewrite /filterdiff; split; first by apply is_linear_fst.
+  move => y flim;
+  rewrite /Equiv.is_domin => eps.
+  proj_proof eps.
+Qed.
+Lemma filterdiff_snd: forall 
+  {K: AbsRing}
+  {V1 V2: NormedModule K} 
+  (F: (V1*V2 -> Prop) -> Prop)
+  {FF : Filter F},
+  filterdiff (K:=K) snd F snd.
+Proof.
+  rewrite /filterdiff; split; first by apply is_linear_snd.
+  move => y flim.
+  rewrite /Equiv.is_domin => eps.
+  proj_proof eps.
+Qed.
+
 Hint Resolve is_derive_pair : derive_compute.
 Hint Resolve derive_ex_derive : derive_compute.
 Hint Resolve filterdiff_ex_filterdiff : derive_compute.
 Hint Resolve ex_derive_filterdiff : derive_compute.
+Hint Immediate filterdiff_fst : derive_compute.
+Hint Immediate filterdiff_snd : derive_compute.
 
 Record Path (M: NormedModule R_AbsRing) := MkPath {
   l: R;
@@ -257,20 +296,19 @@ Proof.
 Qed.
 Section Holo.
   Definition CR_eqs (u v udx udy vdx vdy: C -> R) := 
-      forall x y, is_derive (fun t => u (t,y)) x (udx (x,y)) /\
-      forall x y, is_derive (fun t => u (x,t)) y (udy (x,y)) /\
-      forall x y, is_derive (fun t => v (t,y)) x (vdx (x,y)) /\
-      forall x y, is_derive (fun t => v (x,t)) y (vdy (x,y))
+      (forall x y, is_derive (fun t => u (t,y)) x (udx (x,y))) /\
+      (forall x y, is_derive (fun t => u (x,t)) y (udy (x,y))) /\
+      (forall x y, is_derive (fun t => v (t,y)) x (vdx (x,y))) /\
+      (forall x y, is_derive (fun t => v (x,t)) y (vdy (x,y)))
       .
 
   Definition CauchyRieman (u v udx udy vdx vdy: C -> R) z:=
-    CR_eqs u v udx udy vdx vdy ->
     udx z = vdy z /\ 
     udy z = (- vdx z)%R
     .
   
   Definition Holo (f g: C -> C) z := 
-    is_derive (K:=C_AbsRing) f z (g z).
+    is_derive (K:=C_AbsRing) (V:= C_NormedModule) f z (g z).
 
   Ltac auto_continuous_aux :=
     try apply continuous_id;
@@ -343,13 +381,13 @@ Section Holo.
     auto.
   Qed.
 
-
-  Lemma C_diff_imag_axis: forall 
+  Hint Rewrite prod_c_topolog_eq.
+  Lemma c_diff_imaginary_axis: forall 
     (f: C -> C) (z:C) (v:C) ,
-    filterdiff (K:=C_AbsRing) f (locally z) (scal ^~ v) ->
-    filterdiff (fun q => f (z.1, q)) (locally z.2) (scal ^~ ((-v.2,v.1)%R)).
+    is_derive (K:=C_AbsRing) f z v ->
+    is_derive (fun q => f (z.1, q)) z.2 ((-v.2,v.1)%R).
   Proof.
-    rewrite /filterdiff => f z v.
+    rewrite /is_derive /filterdiff => f z v.
     case => _ //=; split;
     first by apply (is_linear_scal_l (K:=R_AbsRing) ((-v.2,v.1)%R)).
     move => o xlim .
@@ -367,18 +405,11 @@ Section Holo.
     over.
     apply local_c_imags.
     specialize b with z eps.
-    have H: (is_filter_lim (locally z) z) by rewrite /is_filter_lim; auto.
-    apply b in H.
-    set c_normeq := fun x: C =>
-      norm  (minus (minus (f x) (f z)) (scal (minus x z) v)) <=
-       eps * norm (minus x z) in H.
-
     pose h := fun q:C => (z.1,q.2).
     auto_continuous h z => hcts.
-    have : (locally z (fun q => c_normeq (h q) ))
-      by apply hcts; rewrite -surjective_pairing; auto.
-    move {H} => H.
-
+    set c_normeq := fun x: C =>
+      norm  (minus (minus (f x) (f z)) (scal (minus x z) v)) <=
+       eps * norm (minus x z) in b.
     have H': (forall q, q.1 = z.1 -> c_normeq (h q) = r_normeq q ).
     - case => q1 q2.
       simpl.
@@ -404,13 +435,17 @@ Section Holo.
     - rewrite /within. 
       eapply (filter_imp (fun q => c_normeq (h q)));
       first by move => x cn eq; rewrite -H' //=.
-      auto.
+      apply hcts.
+      rewrite -surjective_pairing.
+      rewrite prod_c_topolog_eq.
+      apply b.
+      rewrite /is_filter_lim //=.
     Qed.
   (** copy paste horror show!, but it's fine for now*)
-  Lemma C_diff_real_axis: forall 
+  Lemma c_diff_real_axis: forall 
     (f: C -> C) (z:C) (v:C) ,
-    filterdiff (K:=C_AbsRing) f (locally z) (scal ^~ v) ->
-    filterdiff (fun q => f (q,z.2)) (locally z.1) (scal ^~ (v.1,v.2)).
+    is_derive (K:=C_AbsRing) f z v ->
+    is_derive (fun q => f (q,z.2)) z.1 (v.1,v.2).
   Proof.
     rewrite /filterdiff => f z v.
     case => _ //=; split;
@@ -429,18 +464,12 @@ Section Holo.
        rewrite -/(r_normeq (p, z.2)).
     over.
     apply local_c_reals.
-    specialize b with z eps.
-    have H: (is_filter_lim (locally z) z) by rewrite /is_filter_lim; auto.
-    apply b in H.
     set c_normeq := fun x: C =>
       norm  (minus (minus (f x) (f z)) (scal (minus x z) v)) <=
-       eps * norm (minus x z) in H.
+       eps * norm (minus x z).
 
     pose h := fun q:C => (q.1,z.2).
     auto_continuous h z => hcts.
-    have : (locally z (fun q => c_normeq (h q) ))
-      by apply hcts; rewrite -surjective_pairing; auto.
-    move {H} => H.
 
     have H': (forall q, q.2 = z.2 -> c_normeq (h q) = r_normeq q ).
     - case => q1 q2.
@@ -467,27 +496,70 @@ Section Holo.
     - rewrite /within. 
       eapply (filter_imp (fun q => c_normeq (h q)));
       first by move => x cn eq; rewrite -H' //=.
-      auto.
+      apply hcts.
+      rewrite -surjective_pairing.
+      rewrite prod_c_topolog_eq.
+
+      apply (b z).
+      rewrite /is_filter_lim //=.
     Qed.
 
 
 
-
-  
-
-
-
-
-
-  Theorem CauchyRieman_Holo: forall u v udx udy vdx vdy z,
-    CR_eqs u v udx udy vdx vdy -> 
-      (CauchyRieman u v udx udy vdx vdy z <-> 
-      Holo (fun p => (u p, v p)) (fun p => (udx p, (-udy p)%R)) z)
+  Lemma diff_split_coords: forall 
+    {K: AbsRing}
+    {V1 V2: NormedModule K} 
+    (u: K -> V1)
+    (v: K -> V2) x u' v', 
+    is_derive (K:= K) (fun t => (u t, v t)) x (u', v') -> 
+    is_derive (K:= K) u x u' /\
+    is_derive (K:= K) v x v'
     .
   Proof.
-    move => u v udx udy vdx vdy z deqs. symmetry. split .
-    - rewrite /Holo /is_derive /CauchyRieman /filterdiff => holo; split.
-      + apply C_lim_imag_axis.
-      
+    move => K V1 V2 u v x u' v' diff;split.
+    - rewrite /is_derive in diff.
+      apply (filterdiff_comp _ fst _ fst) in diff; simpl in *.
+      + rewrite /is_derive //=.
+      + rewrite /filtermap //=. apply filterdiff_fst.
+    - rewrite /is_derive in diff.
+      apply (filterdiff_comp _ snd _ snd) in diff; simpl in *.
+      + rewrite /is_derive //=.
+      + rewrite /filtermap //=. apply filterdiff_snd.
+  Qed.
+
+  Theorem CauchyRieman_Easy: forall u v udx udy vdx vdy g z,
+    CR_eqs u v udx udy vdx vdy -> 
+    Holo (fun p => (u p, v p)) g z ->
+    (CauchyRieman u v udx udy vdx vdy z /\ (g z).1 = (vdy z) /\ (g z).2 = vdx z)
+    .
+  Proof.
+    move => u v udx udy vdx vdy g z. 
+    rewrite /Holo /CauchyRieman => cr_eqs holo.
+    pose proof holo as holo2.
+    pose proof holo as holo3.
+    apply c_diff_imaginary_axis in holo.
+    apply diff_split_coords in holo.
+    destruct holo.
+    apply c_diff_real_axis in holo2.
+    apply diff_split_coords in holo2.
+    destruct holo2.
+    apply is_derive_unique in H1.
+    apply is_derive_unique in H2.
+    apply is_derive_unique in H.
+    apply is_derive_unique in H0.
+    rewrite -H0 in H1.
+    rewrite -H2 in H.
+    rewrite /CR_eqs in cr_eqs.
+    move: cr_eqs.
+
+    repeat (
+    (first [case => Q | move => Q]);
+    specialize Q with z.1 z.2;
+    apply is_derive_unique in Q;
+    rewrite ? Q in H1, H, H0, H2;
+    move {Q}).
+    rewrite -surjective_pairing in H1,H, H0 H2.
+    auto.
+  Qed.
 
 
