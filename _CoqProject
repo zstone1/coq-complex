@@ -1,4 +1,6 @@
 -R . Top
 
+src/real_helpers.v
+src/ext_rewrite.v
 src/domains.v
 src/rouche.v

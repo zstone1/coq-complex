@@ -11,58 +11,7 @@ Set Bullet Behavior "Strict Subproofs".
 
 Open Scope program_scope.
 Open Scope general_if_scope.
-Lemma sqrt_lt_left : forall x y, 0 <= x -> 0 <= y -> sqrt x < y <-> x < y^2.
-Proof.
-  move => x y xge yge; split; move => H.
-  - apply sqrt_lt_0_alt.
-    rewrite /pow. 
-    rewrite Rmult_1_r.
-    rewrite sqrt_square; auto.
-  - pose z := y * y.
-    rewrite -(sqrt_lem_1 z y) /z.
-    2-4: nra.
-    apply sqrt_lt_1_alt; split; nra.
-Qed.
-
-Lemma rabs_rewrite : forall x y, Rabs x < y <-> (x < y /\ -y < x).
-Proof.
-  move => x y; split => H.
-  -  apply Rabs_def2. auto.
-  - apply Rabs_def1; tauto.
-Qed.
-
-Lemma le_square : forall x y, 0 <= x -> 0 <= y ->  x < y <-> (x * x < y * y).
-Proof.
-  move => *; split => H; nra.
-Qed.
-
-Lemma abs_sqr: forall x, Rabs x * Rabs x = x * x.
-Proof.
-  move => x. rewrite -[_ * _]/(Rsqr _). rewrite -Rsqr_abs; auto.
-Qed.
-
-Lemma square_in_circle: forall x1 x2 y1 y2 e,
-  0 < e -> 
-  abs (y1 - x1) < e ->
-  abs (y2 - x2) < e ->
-  sqrt((y1 - x1)^2 + (y2 - x2)^2) < 2*e.
-Proof.
-  move => x1 x2 y1 y2 e epos U V.
-  apply sqrt_lt_left.
-  2: lra.
-  { apply Rplus_le_le_0_compat; apply pow2_ge_0. }
-  move: U V.
-  rewrite le_square //=. 
-  3: nra.
-  2: apply abs_ge_0.
-  move => H1.
-  rewrite le_square //=. 
-  3: nra.
-  2: apply abs_ge_0.
-  move: H1.
-  rewrite /abs //= abs_sqr abs_sqr.
-  nra.
-Qed.
+Require Import real_helpers ext_rewrite.
 
 Lemma prod_c_topolog_eq: forall z P,
   locally (T:=prod_UniformSpace R_UniformSpace R_UniformSpace) z P <->
