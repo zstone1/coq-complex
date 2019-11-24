@@ -9,64 +9,21 @@ Unset Strict Implicit.
 Unset Printing Implicit Defensive.
 Set Bullet Behavior "Strict Subproofs".
 
+Require Import domains.
+
 Open Scope program_scope.
 Open Scope general_if_scope.
 
 Create HintDb derive_compute.
 
   Open Scope R.
-  Lemma sqrt_lt_left : forall x y, 0 <= x -> 0 <= y -> sqrt x < y <-> x < y^2.
-  Proof.
-    move => x y xge yge; split; move => H.
-    - apply sqrt_lt_0_alt.
-      rewrite /pow. 
-      rewrite Rmult_1_r.
-      rewrite sqrt_square; auto.
-    - pose z := y * y.
-      rewrite -(sqrt_lem_1 z y) /z.
-      2-4: nra.
-      apply sqrt_lt_1_alt; split; nra.
-  Qed.
-
-  Lemma rabs_rewrite : forall x y, Rabs x < y <-> (x < y /\ -y < x).
-  Proof.
-    move => x y; split => H.
-    -  apply Rabs_def2. auto.
-    - apply Rabs_def1; tauto.
-  Qed.
-
-  Lemma le_square : forall x y, 0 <= x -> 0 <= y ->  x < y <-> (x * x < y * y).
-  Proof.
-    move => *; split => H; nra.
-  Qed.
-
-  Lemma abs_sqr: forall x, Rabs x * Rabs x = x * x.
-  Proof.
-    move => x. rewrite -[_ * _]/(Rsqr _). rewrite -Rsqr_abs; auto.
-  Qed.
-
-  Lemma square_in_circle: forall x1 x2 y1 y2 e,
-    0 < e -> 
-    abs (y1 - x1) < e ->
-    abs (y2 - x2) < e ->
-    sqrt((y1 - x1)^2 + (y2 - x2)^2) < 2*e.
-  Proof.
-    move => x1 x2 y1 y2 e epos U V.
-    apply sqrt_lt_left.
-    2: lra.
-    { apply Rplus_le_le_0_compat; apply pow2_ge_0. }
-    move: U V.
-    rewrite le_square //=. 
-    3: nra.
-    2: apply abs_ge_0.
-    move => H1.
-    rewrite le_square //=. 
-    3: nra.
-    2: apply abs_ge_0.
-    move: H1.
-    rewrite /abs //= abs_sqr abs_sqr.
-    nra.
-  Qed.
+Lemma diff_sqr : forall x y, 0 <= x^2 - 2 * x * y + y ^2.
+Proof.
+  move => x y.
+  have <-: (x-y)^2 = x ^ 2 - 2*x*y + y^2.
+  - nra.
+  - rewrite -Rsqr_pow2; apply Rle_0_sqr.
+Qed.
 
 Ltac auto_derive_all_aux := 
   first [progress eauto with derive_compute | auto_derive]; 
@@ -273,203 +230,264 @@ rewrite /scal //=.
 apply mult_one_r.
 Qed.
 
-Definition connected {T:UniformSpace} (D: T -> Prop) := 
-  forall U V : T -> Prop, 
-    (forall z, U z \/ V z <-> D z) -> 
-    open U -> 
-    open V -> 
-    (exists z, U z) ->
-    (exists z, V z) ->
-    (exists z, U z /\ V z)
-  .
-Open Scope fun_scope.
-Open Scope type_scope.
-Definition NtoC (n: nat) := RtoC (INR n).
+Open Scope C.
 
-Section Domain.
-              
-  Record Domain (D:C -> Prop) := dom {
-    open_dom: open D;
-    connected_dom: connected D;
-    dec_D : C -> bool;
-    dec_DP : forall z, reflect (D z) (dec_D z);
-  }.
-
-  Definition mkDomain D (_:Domain D): Type := {z:C | D z}.
-
-  Coercion mkDomain : Domain >-> Sortclass.
-  (** need Program definition here to help coq understand that 
-      f only occurs in the (D z) case.*)
-  Program Definition const_extend {T:Type} {D_set : C -> Prop} 
-    {D: Domain D_set} (x:T) (f: D -> T) (z: C): T := 
-      if dec (dec_D D z)
-      then f z
-      else x.
-  Obligation 1.
-    (move => * //=; apply /(dec_DP); eauto).
-  Qed.
-
-  Definition dom_irr {T} {D_set} {D:Domain D_set}  (f: D -> T) := 
-    forall z h1 h2, f (exist D_set z h1) = f (exist D_set z h2).
-  Program Definition const_extend_id_def := 
-    forall T D_set (D: Domain D_set) (f: D -> T) (x:T) z (Dz: D_set z) ,
-    dom_irr f ->
-    const_extend x f z = f z.
-
-  Lemma const_extend_id: const_extend_id_def.
-  Proof.
-    rewrite /const_extend_id_def /const_extend. 
-    move => T Ds D f x z + irr.
-    case dec => [ eqt | fls Dz].
-    - apply irr. 
-    - contradict fls. move: Dz => /(dec_DP D) => q; rewrite q //=. 
-  Qed.
-  Print Rtotal_order.
-  SearchAbout ( _ < _ -> bool).
-  Program Definition ODisk (r: {r : R | r > 0}):  Domain (fun z => Cmod z < r) := {|
-    open_dom := _;
-    connected_dom := _ ;
-    dec_D := _ ;
-    dec_DP := _;
-  |}.
-
-  Lemma ODisk_open: forall r, (0 < r) -> open (fun z => Cmod z < r).
-
-  Proof.
-    rewrite /open /locally => r rpos x zle.
-    rewrite /ball //= /prod_ball //= /ball //= /AbsRing_ball //= .
-    pose proof zle.
-    eexists ?[eps].
-    move => y; case => b1 b2.
-    move: b1 b2 H.
-    have tri: (Cmod y <= Cmod (minus y x) + Cmod (x) ).
-    { have q: (y = plus (minus y x) x); 
-        last by rewrite {1} q; eapply Cmod_triangle.
-      rewrite /minus -plus_assoc plus_opp_l plus_zero_r //=.
-    }
-    move => H1 H2 H3.
-    have to_circ:(Cmod (minus y x) < 2 * ?eps).
-    { apply square_in_circle. 1: shelve. all: auto. }
-    have epslt: (2*?eps < r - Cmod x); first shelve.
-    nra.
-
-
-    Grab Existential Variables.
-    - set e:= (r -Cmod x) / 4.
-      have epos: (e > 0) by (rewrite /e; nra).
-      set e' := mkposreal e epos.
-      instantiate (1 := mkposreal ((r -Cmod x)/4) _ ).
-      simpl.
-      nra.
-    - simpl. nra.
-    Unshelve.
-    nra.
-  Qed.
-
-  Obligation 1: 
-  Proof. apply ODisk_open. lra. Qed.
-
-  Obligation 2.
-  Proof.
-    rewrite /connected => U V union oU oV.
-    case => x Ux.
-    case => y Vy.
-    pose f:= fun t:R => plus (scal t x) ( scal (1- t)  y).
-    have segment_aux: (forall t: R, 0 < t < 1 -> 
-      Cmod (f t) < r0).
-    { move => t bd.
-      apply (Rle_lt_trans _ (Cmod (scal t x) + Cmod (scal (1-t) y)) _); 
-      first by apply Cmod_triangle.
-      repeat rewrite scal_R_Cmult.
-      repeat rewrite Cmod_mult.
-      repeat rewrite Cmod_R.
-      repeat rewrite Rabs_pos_eq.
-      2,3: nra.
-
-      have : (Cmod x < r0) by apply union; auto.
-      have : (Cmod y < r0) by apply union; auto.
-      nra.
-    }
-    have f0 : (f 0 = y). 
-    { rewrite /f.
-      rewrite scal_zero_l.
-      rewrite plus_zero_l.
-      rewrite Rminus_0_r.
-      rewrite scal_one.
-      auto.
-    }
-    have f1 : (f 1 = x). 
-    { rewrite /f.
-      rewrite scal_one.
-      rewrite Rcomplements.Rminus_eq_0.
-      rewrite scal_zero_l.
-      rewrite plus_zero_r.
-      auto.
-    }
-    have segement: (forall t: R, 0 <= t <= 1 -> Cmod (f t) < r0).
-    { move => t.
-      case. 
-      case => teq1; case => teq2.
-      - apply segment_aux; lra.
-      - rewrite teq2. rewrite f1. apply union. auto.
-      - rewrite -teq1. rewrite f0. apply union. auto.
-      - rewrite teq2 in teq1. contradict teq1. auto.
-    }
-
-    forall (forall t: R
-
-
-  Qed.
-End Domain.
-
-Section Holo.
-
-  Context {D_set: C -> Prop} {D: Domain D_set}.
-
-  Context {V: NormedModule C_AbsRing}.
-  
-  Definition holo (f: D -> V) (z:D) (l:V) := 
-    filterdiff (K:= C_AbsRing) (V:=V) f (locally z) (fun y => scal y l).  
-  Proof.
-    rewrite /holo => z Dz //=.
-    apply holo_id_aux.
-    under ext_filterdiff_d => x do by rewrite scal_one_r over.
-    apply (filterdiff_id _).
-  Qed.
-
-Lemma holo_pow: forall n, 
-  holo (pow_n ^~ (S n)) 
-  (fun x => mult (NtoC (S n)) (pow_n x n)).
+Lemma continous_pair {T U1 U2: UniformSpace}:
+  forall (f: T -> U1) (g: T -> U2) t, 
+  continuous f t ->
+  continuous g t ->
+  continuous (fun q => (f q, g q)) t.
 Proof.
-  elim => [| n IHn] //=; rewrite /holo /is_derive => z Dz.
-  - under ext_filterdiff_glo => x 
-      do by rewrite mult_one_r over.
-    under ext_filterdiff_d => x.
-      rewrite mult_one_r /NtoC /scal //=.
-      rewrite mult_one_r.
+  move => f g t ctsf ctsg.
+  rewrite /continuous.
+  eapply filterlim_filter_le_2 .
+  2: eapply filterlim_pair.
+  2: apply ctsf.
+  2: apply ctsg.
+  rewrite /filter_le => P.
+  case => eps //=.
+  rewrite /ball //= /prod_ball //=.
+  move => H.
+  eapply Filter_prod.
+  - eapply locally_ball .
+  - eapply locally_ball.
+  - move => a b bf bg. 
+    apply H.
+    eauto.
+Qed.
+Section Holo.
+  Definition CR_eqs (u v udx udy vdx vdy: C -> R) := 
+      forall x y, is_derive (fun t => u (t,y)) x (udx (x,y)) /\
+      forall x y, is_derive (fun t => u (x,t)) y (udy (x,y)) /\
+      forall x y, is_derive (fun t => v (t,y)) x (vdx (x,y)) /\
+      forall x y, is_derive (fun t => v (x,t)) y (vdy (x,y))
+      .
+
+  Definition CauchyRieman (u v udx udy vdx vdy: C -> R) z:=
+    CR_eqs u v udx udy vdx vdy ->
+    udx z = vdy z /\ 
+    udy z = (- vdx z)%R
+    .
+  
+  Definition Holo (f g: C -> C) z := 
+    is_derive (K:=C_AbsRing) f z (g z).
+
+  Ltac auto_continuous_aux :=
+    try apply continuous_id;
+    try apply continuous_const;
+    try eapply continous_pair; 
+    try apply continuous_fst; 
+    try apply continuous_snd.
+  Ltac auto_continuous x z := 
+    have: continuous x z;
+    rewrite /x;
+    repeat auto_continuous_aux.
+
+  Lemma local_c_reals:
+    forall (z:C) P,
+      (within (fun q => q.2 = z.2) (locally (T:=C_UniformSpace) z)) P ->
+      (locally (T:= R_UniformSpace) z.1 (fun q => (P (q,z.2)))).
+  Proof.
+    move => z P lz //=.
+    pose h (q:R) := (q, z.2).
+    auto_continuous h z.1 => ctsh.
+    apply (ext_filter ( Q:= fun q => P (h q))); first by rewrite/h; auto.
+    have ->: (locally z.1 (fun q => P (h q)) = filtermap h (locally z.1) P);
+    first by rewrite /filtermap; auto.
+    have q: (filterlim h 
+      (locally z.1) 
+      (within (fun q => q.2 = z.2) (locally z))).
+    - rewrite /within /filterlim /filtermap /filter_le.
+      move {lz P} => P.
+      rewrite ? /locally => c_lim.
+      case: c_lim => eps c_lim.
+      eexists eps => y byz.
+      apply c_lim .
+      + move: byz.
+        rewrite /h ? /ball //= /prod_ball //= /ball //=.
+        move => byz; split; first by auto.
+        apply AbsRing_ball_center.
+      + rewrite /h //=.
+    - rewrite /filterlim /filter_le in q.
+      specialize q with P.
+      apply q.
+      auto.
+  Qed.
+
+  Lemma local_c_imags:
+    forall (z:C) P,
+        (within (fun q => q.1 = z.1) (locally (T:=C_UniformSpace) z)) P ->
+        (locally (T:= R_UniformSpace) z.2 (fun q => (P (z.1,q)))).
+  Proof.
+    move => z P lzP.
+    pose h (z:C) := (z.2,z.1) .
+    apply (local_c_reals (z:=(z.2,z.1)) (P:= fun q => P (q.2, q.1))).
+    simpl.
+    under ext_filter => x.
+      have <-: (h x = (x.2,x.1)) by rewrite /h; auto.
     over.
+    auto_continuous h (z.2, z.1) => H.
+    rewrite /within in lzP *.
+    apply H in lzP.
+    rewrite /filtermap //= in lzP.
+  Qed.
+
+  Lemma Cmod_prod_norm: forall x1 x2,
+    Cmod (x1,x2) = prod_norm (K:= R_AbsRing) (x1,x2).
+  Proof.
+    move => x y.
+    rewrite /Cmod //= /prod_norm //= /norm //= /abs //=.
+    f_equal.
+    field_simplify.
+    rewrite ? pow2_abs.
     auto.
-    apply (filterdiff_id ).
-    auto_derive_all.
-  - rewrite /holo => z Dz.
-    apply (filterdiff_comp _ (mult x)).
-    under ext_filterdiff_glo => x.
-      rewrite -/pow_n.
-      field_simplify.
+  Qed.
 
+
+  Lemma C_diff_imag_axis: forall 
+    (f: C -> C) (z:C) (v:C) ,
+    filterdiff (K:=C_AbsRing) f (locally z) (scal ^~ v) ->
+    filterdiff (fun q => f (z.1, q)) (locally z.2) (scal ^~ ((-v.2,v.1)%R)).
+  Proof.
+    rewrite /filterdiff => f z v.
+    case => _ //=; split;
+    first by apply (is_linear_scal_l (K:=R_AbsRing) ((-v.2,v.1)%R)).
+    move => o xlim .
+    have eqn: (z.2 = o) by apply is_filter_lim_locally_unique; auto.
+    subst.
+    rewrite /Equiv.is_domin //= in b *.
+    move => eps.
+    pose r_normeq := 
+      fun z' => norm (K:=R_AbsRing)
+          (minus (minus (f (z'.1, z'.2)) (f (z.1, z.2))) 
+                 (scal (minus z'.2 z.2) ((-v.2,v.1)%R))) <=
+        eps * norm (minus z'.2 z.2) .
+    under ext_filter => p.
+       rewrite -/(r_normeq (z.1, p)).
+    over.
+    apply local_c_imags.
+    specialize b with z eps.
+    have H: (is_filter_lim (locally z) z) by rewrite /is_filter_lim; auto.
+    apply b in H.
+    set c_normeq := fun x: C =>
+      norm  (minus (minus (f x) (f z)) (scal (minus x z) v)) <=
+       eps * norm (minus x z) in H.
+
+    pose h := fun q:C => (z.1,q.2).
+    auto_continuous h z => hcts.
+    have : (locally z (fun q => c_normeq (h q) ))
+      by apply hcts; rewrite -surjective_pairing; auto.
+    move {H} => H.
+
+    have H': (forall q, q.1 = z.1 -> c_normeq (h q) = r_normeq q ).
+    - case => q1 q2.
+      simpl.
+      move => ?.
+      subst.
+      rewrite /c_normeq /r_normeq /h //=.
+      rewrite ? /norm //= -Cmod_prod_norm //=.
+      rewrite ? /minus //= ? /plus //= ? /opp //= ? /scal //=
+              ? /mult //= ? /abs //=.
+      destruct z.
+      simpl.
+      repeat f_equal.
+      + field_simplify.
+        rewrite ? /Cplus ? /Cminus ? /Cmult ? /Copp //=.
+        f_equal; field_simplify; auto.
+      + rewrite /Cmod //=.
+        apply sqrt_lem_1.
+        * field_simplify. apply diff_sqr.
+        * apply Rabs_pos.
+        * field_simplify. rewrite pow2_abs. field_simplify.
+          auto.
+
+    - rewrite /within. 
+      eapply (filter_imp (fun q => c_normeq (h q)));
+      first by move => x cn eq; rewrite -H' //=.
+      auto.
+    Qed.
+  (** copy paste horror show!, but it's fine for now*)
+  Lemma C_diff_real_axis: forall 
+    (f: C -> C) (z:C) (v:C) ,
+    filterdiff (K:=C_AbsRing) f (locally z) (scal ^~ v) ->
+    filterdiff (fun q => f (q,z.2)) (locally z.1) (scal ^~ (v.1,v.2)).
+  Proof.
+    rewrite /filterdiff => f z v.
+    case => _ //=; split;
+    first by apply (is_linear_scal_l (K:=R_AbsRing) (v.1,v.2)).
+    move => o xlim .
+    have eqn: (z.1 = o) by apply is_filter_lim_locally_unique; auto.
+    subst.
+    rewrite /Equiv.is_domin //= in b *.
+    move => eps.
+    pose r_normeq := 
+      fun z' => norm (K:=R_AbsRing)
+          (minus (minus (f (z'.1, z'.2)) (f (z.1, z.2))) 
+                 (scal (minus z'.1 z.1) (v.1,v.2))) <=
+        eps * norm (minus z'.1 z.1) .
+    under ext_filter => p.
+       rewrite -/(r_normeq (p, z.2)).
+    over.
+    apply local_c_reals.
+    specialize b with z eps.
+    have H: (is_filter_lim (locally z) z) by rewrite /is_filter_lim; auto.
+    apply b in H.
+    set c_normeq := fun x: C =>
+      norm  (minus (minus (f x) (f z)) (scal (minus x z) v)) <=
+       eps * norm (minus x z) in H.
+
+    pose h := fun q:C => (q.1,z.2).
+    auto_continuous h z => hcts.
+    have : (locally z (fun q => c_normeq (h q) ))
+      by apply hcts; rewrite -surjective_pairing; auto.
+    move {H} => H.
+
+    have H': (forall q, q.2 = z.2 -> c_normeq (h q) = r_normeq q ).
+    - case => q1 q2.
+      simpl.
+      move => ?.
+      subst.
+      rewrite /c_normeq /r_normeq /h //=.
+      rewrite ? /norm //= -Cmod_prod_norm //=.
+      rewrite ? /minus //= ? /plus //= ? /opp //= ? /scal //=
+              ? /mult //= ? /abs //=.
+      destruct z.
+      simpl.
+      repeat f_equal.
+      + field_simplify.
+        rewrite ? /Cplus ? /Cminus ? /Cmult ? /Copp //=.
+        f_equal; field_simplify; auto.
+      + rewrite /Cmod //=.
+        apply sqrt_lem_1.
+        * field_simplify. apply diff_sqr.
+        * apply Rabs_pos.
+        * field_simplify. rewrite pow2_abs. field_simplify.
+          auto.
+
+    - rewrite /within. 
+      eapply (filter_imp (fun q => c_normeq (h q)));
+      first by move => x cn eq; rewrite -H' //=.
+      auto.
+    Qed.
+
+
+
+
+  
+
+
+
+
+
+  Theorem CauchyRieman_Holo: forall u v udx udy vdx vdy z,
+    CR_eqs u v udx udy vdx vdy -> 
+      (CauchyRieman u v udx udy vdx vdy z <-> 
+      Holo (fun p => (u p, v p)) (fun p => (udx p, (-udy p)%R)) z)
+    .
+  Proof.
+    move => u v udx udy vdx vdy z deqs. symmetry. split .
+    - rewrite /Holo /is_derive /CauchyRieman /filterdiff => holo; split.
+      + apply C_lim_imag_axis.
       
-  under ext_filterdiff_loc. 
-  
-
-
-
-
-
-  
-  
-
-
-
-
 
 
