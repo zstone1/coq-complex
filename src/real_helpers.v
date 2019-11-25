@@ -31,6 +31,21 @@ Proof.
     apply sqrt_lt_1_alt; split; nra.
 Qed.
 
+Lemma sqrt_le_left : forall x y, 0 <= x -> 0 <= y -> sqrt x <= y <-> x <= y^2.
+Proof.
+  move => x y xge yge; split; move => H.
+  - apply sqrt_le_0.
+    1,2: nra.
+    rewrite /pow. 
+    rewrite Rmult_1_r.
+    rewrite sqrt_square; auto.
+  - pose z := y * y.
+    rewrite -(sqrt_lem_1 z y) /z.
+    2-4: nra.
+    apply sqrt_le_1; nra.
+Qed.
+
+
 Lemma rabs_rewrite : forall x y, Rabs x < y <-> (x < y /\ -y < x).
 Proof.
   move => x y; split => H.
@@ -158,10 +173,9 @@ Lemma filterdiff_fst: forall
   {FF : Filter F},
   filterdiff (K:=K) fst F fst.
 Proof.
-  rewrite /filterdiff; split; first by apply is_linear_fst.
-  move => y flim;
-  rewrite /Equiv.is_domin => eps.
-  proj_proof eps.
+  move => *. 
+  apply filterdiff_linear.
+  apply is_linear_fst.
 Qed.
 Lemma filterdiff_snd: forall 
   {K: AbsRing}
@@ -170,10 +184,9 @@ Lemma filterdiff_snd: forall
   {FF : Filter F},
   filterdiff (K:=K) snd F snd.
 Proof.
-  rewrite /filterdiff; split; first by apply is_linear_snd.
-  move => y flim.
-  rewrite /Equiv.is_domin => eps.
-  proj_proof eps.
+  move => *. 
+  apply filterdiff_linear.
+  apply is_linear_snd.
 Qed.
 
 Hint Resolve is_derive_pair : derive_compute.
