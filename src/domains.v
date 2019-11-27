@@ -13,13 +13,13 @@ Open Scope program_scope.
 Open Scope general_if_scope.
 Require Import real_helpers ext_rewrite.
 
-Lemma prod_c_topolog_eq: forall z P,
+
+Lemma prod_c_topology_eq: forall z P,
   locally (T:=prod_UniformSpace R_UniformSpace R_UniformSpace) z P <->
   locally (T:=AbsRing_UniformSpace C_AbsRing) z P.
 Proof.
   move => z P.
   rewrite /locally //=.
-  SearchAbout posreal.
   split => H; move: H; case => eps H;
   [eexists eps | eexists (mkposreal (eps/2) _)] => y bz;
   apply H;
@@ -43,7 +43,6 @@ Proof.
     case => r1 r2.
     apply Rsqr_lt_abs_1 in r1.
     apply Rsqr_lt_abs_1 in r2.
-    SearchAbout (_ < _ -> _ < _ -> _ + _ < _ + _).
     pose proof (Rplus_lt_compat _ _ _ _ r1 r2).
     rewrite /Rsqr in H0.
     nra.
@@ -52,6 +51,13 @@ Proof.
   Unshelve.
   1: pose proof cond_pos eps; nra.
   all: rewrite -? /(Rsqr _); apply Rle_0_sqr.
+Qed.
+
+Lemma cts_topology_equiv: forall {T:UniformSpace} (f:T -> C) z,
+  continuous (U:=C_UniformSpace) f z <->
+  continuous (U:=prod_UniformSpace R_UniformSpace R_UniformSpace) f z.
+Proof.
+  tauto.
 Qed.
 
 Section PathConnected .
