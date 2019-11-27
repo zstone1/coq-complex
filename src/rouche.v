@@ -350,20 +350,28 @@ Section Holo.
     - move => _ ord.
       rewrite ?Rabs_right; lra.
   Qed.
+  Lemma Rabs_le_between_min_max_2: 
+     forall x y z : R, Rmin x y <= z <= Rmax x y -> Rabs (z - x) <= Rabs (y - x).
+  Proof.
+    move => x y z.
+    SearchAbout (Rmin _ _ = Rmin _ _).
+    rewrite Rmin_comm Rmax_comm => *.
+    apply (Rabs_le_between_min_max y x z).
+    auto.
+  Qed.
 
   Ltac combine_local H := 
   match goal with 
   | J: locally _ _ |- _ => pose proof (filter_and _ _ J H) as H
   end.
   Ltac ssrautoprop := try tauto; trivial.
-  Theorem CauchyRieman_Hard: forall u v udx udy vdx vdy z,
+  Theorem CauchyRieman_Hard_aux: forall u v udx udy vdx vdy z,
     CR_eqs u v udx udy vdx vdy z -> 
     (CauchyRieman u v udx udy vdx vdy z) -> 
     locally z (continuous udx) ->  
     locally z (continuous udy) ->  
-    locally z (continuous vdx) ->  
-    locally z (continuous vdy) ->  
-    Holo (fun p => (u p, v p)) (fun q => (vdy q, vdx q)) z 
+      Equiv.is_domin (locally z) 
+      (fun q => z - q) (fun q => u q - (udx q + udy q)) 
   .
   Proof.
     move => u v udx udy vdx vdy z.
@@ -372,15 +380,10 @@ Section Holo.
     case => {loc} /(filter_and _ _ loc) => loc.
     move => {loc} /(filter_and _ _ loc) => loc.
     move => CR.
-    do 4 move => {loc} /(filter_and _ _ loc) => loc.
+    do 2 move => {loc} /(filter_and _ _ loc) => loc.
     rewrite ?and_assoc.
      
-    rewrite /Holo /is_derive/ filterdiff.
-    split; first by apply: is_linear_scal_l.
-    
-    rewrite /Equiv.is_domin => a.
-    move => /is_filter_lim_locally_unique <- {a} eps.
-    rewrite -prod_c_topology_eq.
+    rewrite /Equiv.is_domin => eps.
 
     eexists ?[del] => a.
     rewrite /ball //= /prod_ball.
@@ -396,31 +399,39 @@ Section Holo.
       split;
       apply: (Rlt_le_trans _ ?del) ; tauto.
     (do 2 (rewrite /ball //= /AbsRing_ball; unfold_alg)) => {}H.
+    
+    (** the key lemma. Hard to factor due to epsilons and deltas.*)
     have x_axis_mvt: 
       forall (f df :R -> R),
       let l0 := Rmin z.1 a.1 in
       let r0 := Rmax z.1 a.1 in
       (forall x, ball z eps_safe (x,z.2) -> is_derive f x (df x)) ->
-      exists c:R, l0 <= c <= r0 /\ f a.1 - f z.1 = df(c)*(a.1-z.1).
+      exists c:R, l0 <= c <= r0 /\ (f a.1 - f z.1 = df(c)*(a.1-z.1))%R.
     { move {safe} => f df l0 r0 diffin.
       have: (forall x, l0 <= x <= r0 -> is_derive f x (df x)).
-      - simpl in *. move => x /Rabs_le_between_min_max bds.
+      - simpl in *. move => x /Rabs_le_between_min_max_2 bds.
         apply: (diffin x).
         do 2 (rewrite /ball //= /AbsRing_ball; unfold_alg).
         case: H => H1 H2.
         simpl in *; split.
-        + rewrite /Rminus in bds. apply: (Rle_lt_trans _ _ _ bds); auto.
+        + rewrite -!/(Rminus _ _) in bds H1 H2 *. 
+          
+          apply: (Rle_lt_trans _ _ _ bds); auto.
         + set p := (x in Rabs x). simplify_R e p.
           rewrite Rabs_R0; apply cond_pos.
-      - move => diffall.
-        rewrite /r0 /l0.
-        apply (MVT_gen f a.1 z.1 df).
-        have := .
-
-      apply: (MVT_gen f). 
-    
-    
-    have := (MVT_gen (fun q => u(q,z.2)) a.1 z.1 (fun q => udx (q,z.2))).
+      - rewrite /r0 /l0 => diff_all.
+        apply (MVT_gen f z.1 a.1 df).
+        + move => x bds.
+          apply diff_all.
+          lra.
+        + move => x bds.
+          rewrite continuity_pt_filterlim -/(continuous _ _).
+          apply: ex_derive_continuous.
+          exists (df x).
+          apply diff_all.
+          auto.
+    }
+    have : (x_axis_mvt (fun q => u(q,z.2)) a.1 z.1 (fun q => udx (q,z.2))).
     - move => x /Rabs_lt_between_min_max bds.
       move: safe => /(_ (x,z.2)).
       case; last by tauto. 
