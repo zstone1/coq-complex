@@ -79,6 +79,7 @@ Ltac unfold_alg := do ! rewrite
   ? /norm //= -?Cmod_prod_norm //= 
   ? /minus //= ? /plus //= ? /opp //= ? /scal //=
   ? /mult //= ? /abs //= ?/prod_ball //= ? /ball //= 
+  ? /prod_plus //= /prod_opp //=
 .
 
 Ltac elim_norms := do !
@@ -216,11 +217,6 @@ Section Holo.
     all: destruct H; auto.
   Qed.
 
-  Lemma Ci_sqr : Ci * Ci = -1.
-  Proof.
-    rewrite /Ci /Cmult //= /RtoC. f_equal; field_simplify; auto.
-  Qed.
-
   Lemma is_derive_scal_C: forall z k,
     is_derive (K:=C_AbsRing) (fun q => scal k q) z k.
   Proof.
@@ -335,9 +331,8 @@ Section Holo.
   Notation "|| x ||" := (norm x) (at level 100).
   Infix "[+]" := plus (at level 199).
   Infix "[-]" := minus (at level 199).
-  Infix "[.]" := scal (at level 100).
+  Infix "[.]" := scal (at level 10).
 
-  SearchAbout ( sumbool (Rle _ _ ) _).
   Lemma Rabs_lt_between_min_max: 
      forall x y z : R, Rmin x y < z < Rmax x y -> Rabs (z - y) < Rabs (x - y).
   Proof.
@@ -354,7 +349,6 @@ Section Holo.
      forall x y z : R, Rmin x y <= z <= Rmax x y -> Rabs (z - x) <= Rabs (y - x).
   Proof.
     move => x y z.
-    SearchAbout (Rmin _ _ = Rmin _ _).
     rewrite Rmin_comm Rmax_comm => *.
     apply (Rabs_le_between_min_max y x z).
     auto.
@@ -365,126 +359,135 @@ Section Holo.
   | J: locally _ _ |- _ => pose proof (filter_and _ _ J H) as H
   end.
   Ltac ssrautoprop := try tauto; trivial.
-  Theorem CauchyRieman_Hard_aux: forall u v udx udy vdx vdy z,
+  Open Scope R.
+  Theorem MVT_along_axis: forall u udx udy z,
+    locally z ( fun q =>
+      is_derive (fun t => u (t,q.2)) q.1 (udx q)) ->
+    locally z ( fun q =>
+      is_derive (fun t => u (q.1,t)) q.2 (udy q)) ->
+    locally z (fun a => 
+      exists c1 c2, 
+      Rabs(c1 - z.1) <= Rabs (a.1 - z.1) /\
+      Rabs(c2 - z.2) <= Rabs (a.2 - z.2) /\
+      (u a - u z = udx (c1,z.2) * (a.1 - z.1) + 
+                   udy (a.1,c2) * (a.2 - z.2)))
+  .
+  Proof.
+    move => u udx udy z.
+    move => loc.
+    move => {loc} /(filter_and _ _ loc) => loc.
+     
+    case: loc => eps_safe safe.
+
+    eexists ?[del] => a [aballz1 aballz2].
+
+    have H': (?del <= eps_safe) by shelve.
+    have H: (ball z eps_safe a) by
+      split;
+      apply: (Rlt_le_trans _ ?del); auto.
+    simpl in *.
+    
+    (** the key lemma. Hard to factor due to epsilons and deltas.*)
+    have axis_mvt: 
+      forall (f df :R -> R) bd1 bd2 (extend: R -> C),
+      let l0 := Rmin bd1 bd2 in
+      let r0 := Rmax bd1 bd2 in
+      (forall x, Rabs(x-bd1) <= Rabs(bd2-bd1) -> 
+        Rabs ((extend x).1 - z.1) < eps_safe /\
+        Rabs ((extend x).2 - z.2) < eps_safe) ->
+      (forall x, ball z eps_safe (extend x) -> is_derive f x (df x)) ->
+      exists c:R, l0 <= c <= r0 /\ (f bd2 - f bd1 = df(c)*(bd2 - bd1))%R.
+    { move {safe} => f df bd1 bd2 extend l0 r0 ext_lem diffin.
+      have: (forall x, l0 <= x <= r0 -> is_derive f x (df x)).
+      - simpl in *. move => x /Rabs_le_between_min_max_2 bds.
+        apply: (diffin x).
+        apply ext_lem.
+        auto.
+      - rewrite /r0 /l0 => diff_all.
+        apply: MVT_gen => x bds.
+        + apply diff_all.
+          lra.
+        + rewrite continuity_pt_filterlim -/(continuous _ _).
+          apply: ex_derive_continuous.
+          exists (df x).
+          by apply diff_all.
+    }
+
+    have := axis_mvt (fun q => u(q,z.2)) (fun q => udx(q,z.2))
+      z.1 a.1 (fun q => (q,z.2)).
+    case.
+    { move => ? bds.
+      case: H => H1 H2 //=.
+      split.
+      + rewrite -!/(Rminus _ _) in bds H1 H2 *. 
+        apply: (Rle_lt_trans _ _ _ bds); auto.
+      + set p := (x in Rabs x). simplify_R e p.
+        rewrite Rabs_R0; apply cond_pos.
+    }
+    {
+        move => x.
+        move: (safe ) => /(_ (x,z.2)) //=.
+        tauto.
+    }
+    move => xi_udx [/Rabs_le_between_min_max_2 xi_udx_bds mvt_udx].
+
+    have := axis_mvt (fun q => u(a.1,q)) (fun q => udy(a.1,q))
+      z.2 a.2 (fun q => (a.1,q)).
+    case. 
+    {
+        move => ? bds.
+        case: H => H1 H2 //=.
+        simpl in *; split.
+        + rewrite -!/(Rminus _ _) in bds H1 H2 *; auto.
+        + set p := (x in Rabs x). simplify_R e p.
+          apply: (Rle_lt_trans _ _ _ bds); auto.
+    }
+    {
+        move => y yball.
+        move: (safe ) => /(_ (a.1,y)) //=.
+        case; first by exact yball.
+        tauto.
+    }
+    move => xi_udy [/Rabs_le_between_min_max_2 xi_udy_bds mvt_udy].
+
+    exists xi_udx, xi_udy; repeat split; auto.
+     
+    `Begin eq (u a - u z). {
+    | {( u (a.1, a.2) - u (z.1,z.2) )}  
+      rewrite -!surjective_pairing.
+    | {( (_ - u(a.1,z.2)) + (u(a.1,z.2) - _ ) )}
+      field_simplify_eq.
+    | {( _ + udx (_,z.2) * (a.1 - z.1) )}
+      rewrite mvt_udx.
+    | {( udy (a.1, _) * (a.2 - z.2) + _ )}
+      rewrite mvt_udy.
+    `Done.
+    }
+    lra.
+
+    Grab Existential Variables.
+    apply eps_safe.
+    reflexivity.
+  Qed.
+
     CR_eqs u v udx udy vdx vdy z -> 
     (CauchyRieman u v udx udy vdx vdy z) -> 
     locally z (continuous udx) ->  
     locally z (continuous udy) ->  
-      Equiv.is_domin (locally z) 
-      (fun q => z - q) (fun q => u q - (udx q + udy q)) 
+      (Equiv.is_domin (locally z) 
+      (fun q:C => q [-] z) (fun q => (u q - u z) - (q [-] a)* (udx z + udy z))))%C
+  Theorem CauchyRieman_Hard: forall u udx udy z,
+    CR_eqs u v udx udy vdx vdy z -> 
+    (CauchyRieman u v udx udy vdx vdy z) -> 
+    locally z (continuous udx) ->  
+    locally z (continuous udy) ->  
+      Holo (fun q => (u,v))
   .
   Proof.
-    move => u v udx udy vdx vdy z.
-    case => loc.
-    case => {loc} /(filter_and _ _ loc) => loc.
-    case => {loc} /(filter_and _ _ loc) => loc.
-    move => {loc} /(filter_and _ _ loc) => loc.
-    move => CR.
-    do 2 move => {loc} /(filter_and _ _ loc) => loc.
-    rewrite ?and_assoc.
-     
-    rewrite /Equiv.is_domin => eps.
-
-    eexists ?[del] => a.
-    rewrite /ball //= /prod_ball.
-    rewrite /ball //= /AbsRing_ball. 
-    unfold_alg => aballz.
-    case: loc. 
-    do 2 (rewrite /ball //= /AbsRing_ball; unfold_alg).
-    move => eps_safe safe.
-
-    have H: (?del <= eps_safe) by shelve.
-    have {}: (ball z eps_safe a) by 
-      do 2 (rewrite /ball //= /AbsRing_ball; unfold_alg);
-      split;
-      apply: (Rlt_le_trans _ ?del) ; tauto.
-    (do 2 (rewrite /ball //= /AbsRing_ball; unfold_alg)) => {}H.
     
-    (** the key lemma. Hard to factor due to epsilons and deltas.*)
-    have x_axis_mvt: 
-      forall (f df :R -> R),
-      let l0 := Rmin z.1 a.1 in
-      let r0 := Rmax z.1 a.1 in
-      (forall x, ball z eps_safe (x,z.2) -> is_derive f x (df x)) ->
-      exists c:R, l0 <= c <= r0 /\ (f a.1 - f z.1 = df(c)*(a.1-z.1))%R.
-    { move {safe} => f df l0 r0 diffin.
-      have: (forall x, l0 <= x <= r0 -> is_derive f x (df x)).
-      - simpl in *. move => x /Rabs_le_between_min_max_2 bds.
-        apply: (diffin x).
-        do 2 (rewrite /ball //= /AbsRing_ball; unfold_alg).
-        case: H => H1 H2.
-        simpl in *; split.
-        + rewrite -!/(Rminus _ _) in bds H1 H2 *. 
-          
-          apply: (Rle_lt_trans _ _ _ bds); auto.
-        + set p := (x in Rabs x). simplify_R e p.
-          rewrite Rabs_R0; apply cond_pos.
-      - rewrite /r0 /l0 => diff_all.
-        apply (MVT_gen f z.1 a.1 df).
-        + move => x bds.
-          apply diff_all.
-          lra.
-        + move => x bds.
-          rewrite continuity_pt_filterlim -/(continuous _ _).
-          apply: ex_derive_continuous.
-          exists (df x).
-          apply diff_all.
-          auto.
-    }
-    have : (x_axis_mvt (fun q => u(q,z.2)) a.1 z.1 (fun q => udx (q,z.2))).
-    - move => x /Rabs_lt_between_min_max bds.
-      move: safe => /(_ (x,z.2)).
-      case; last by tauto. 
-      case: H.
-      simpl; split.
-      + by apply: (transitivity bds).
-      + set p := (x in Rabs x). simplify_R e p.
-        rewrite Rabs_R0; apply cond_pos.
-    - move => x /Rabs_le_between_min_max bds.
-      rewrite continuity_pt_filterlim -/(continuous _ _).
-      apply: ex_derive_continuous.
-      exists (udx (x,z.2)).
-      move: safe => /(_ (x,z.2)).
-      case; last by tauto. 
-      case: H.
-      simpl in *; split.
-      + rewrite /Rminus in bds. apply: (Rle_lt_trans _ _ _ bds); auto.
-      + set p := (x in Rabs x). simplify_R e p.
-        rewrite Rabs_R0; apply cond_pos.
-
-    - move => mvtdx.
-      split; 
-      SearchAbout (Rmin _ _)%R.
-      apply.
-
-      do 2 (rewrite /ball //= /AbsRing_ball; unfold_alg).
-      have eps2bd: (Rabs (a.1+ -z.1) < eps2 /\ Rabs(a.2 + - z.2) < eps2)by
-        case:aballz; 
-        do 2 move => /(Rlt_le_trans) /(_ H) => ?.
-      move /(_ eps2bd).
-      
-      
-        SearchAbout (_< _ -> _ <= _ -> _ < _).
-        split; transitivity .
-
-      move => /(_ eps).
-
-    pose proof (filter_and _ _ _ d_udx c_udx).
-
-    rewrite /CR_eqs in CR_eqs.
-    move: CR_eqs.
-    Set Printing Implicit.
 
 
-    `Begin eq U. { 
-       rewrite /U.
-      
-     | {( (u(b,c) - u(x, c)) + (u(x, c) - u(x,y)) )} 
-         field_simplify. 
-     | {( udx _ * (b-x)      +  _  )} idtac. 
-    all: `Done.
-    }
-      
+
     
     over.
 End Holo.
