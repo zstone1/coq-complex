@@ -1,6 +1,6 @@
 Require Import Reals Psatz Lra.
 From Coquelicot Require Import Continuity 
-  Derive Hierarchy AutoDerive Rbar Complex .
+  Derive Hierarchy AutoDerive Rbar Complex.
 From Coq Require Import ssreflect ssrfun ssrbool.
 Close Scope boolean_if_scope.
 Require Import Program.
@@ -15,6 +15,7 @@ Open Scope general_if_scope.
 Create HintDb derive_compute.
 
 Require Import ext_rewrite.
+
 
 Open Scope R.
 
@@ -196,7 +197,7 @@ Hint Resolve ex_derive_filterdiff : derive_compute.
 Hint Immediate filterdiff_fst : derive_compute.
 Hint Immediate filterdiff_snd : derive_compute.
 
-Lemma continous_pair {T U1 U2: UniformSpace}:
+Lemma continuous_pair {T U1 U2: UniformSpace}:
   forall (f: T -> U1) (g: T -> U2) t, 
   continuous f t ->
   continuous g t ->
@@ -219,3 +220,17 @@ Proof.
     apply H.
     eauto.
 Qed.
+
+Ltac auto_continuous_aux :=
+  try apply: continuous_id;
+  try apply: continuous_const;
+  try apply: continuous_pair; 
+  try apply: continuous_scal;
+  try apply: continuous_minus; 
+  try apply: continuous_plus; 
+  try apply: continuous_fst; 
+  try apply: continuous_snd.
+Ltac auto_continuous x z := 
+  have: continuous x z;
+  rewrite /x;
+  repeat auto_continuous_aux.

@@ -126,17 +126,6 @@ Section Holo.
   Definition Holo (f g: C -> C) z := 
     is_derive (K:=C_AbsRing) (V:= C_NormedModule) f z (g z).
 
-  Ltac auto_continuous_aux :=
-    try apply continuous_id;
-    try apply continuous_const;
-    try eapply continous_pair; 
-    try apply continuous_fst; 
-    try apply continuous_snd.
-  Ltac auto_continuous x z := 
-    have: continuous x z;
-    rewrite /x;
-    repeat auto_continuous_aux.
-
   Lemma local_c_reals:
     forall (z:C) P,
       (within (fun q => q.2 = z.2) (locally (T:=C_UniformSpace) z)) P ->
@@ -530,187 +519,182 @@ Section Holo.
       Holo (fun q => (u q, v q)) (fun q => (vdy q, vdx q)) z
   .
   Proof.
-  move => u v udx udy vdx vdy z CR_diffs CR_eqs.
-  move => /filterlim_locally c_udx.
-  move => /filterlim_locally c_udy.
-  move => /filterlim_locally c_vdx.
-  move => /filterlim_locally c_vdy.
-  simpl in *.
-  case CR_diffs => d_udx.
-  case => d_udy.
-  case => d_vdx.
-  move => d_vdy.
-  rewrite /Holo /is_derive /filterdiff.
-  split; first by apply is_linear_scal_l.
-  move => + /is_filter_lim_locally_unique <- eps.
-  move => _.
-  simpl in *.
-  rewrite -prod_c_topology_eq.
-  apply: (filter_apply (MVT_along_axis d_udx d_udy)).
-  apply: (filter_apply (MVT_along_axis d_vdx d_vdy)).
-  pose eps4 := pos_div_2 (pos_div_2 eps).
-  move => {d_udx d_udy d_vdx d_vdy }.
-  move: c_udx => /(_ eps4).
-  move: c_udy => /(_ eps4).
-  move: c_vdx => /(_ eps4).
-  move: c_vdy => /(_ eps4).
-  move => cts.
-  do 3 move => {cts} /(filter_and _ _ cts) => cts.
-  move: cts => [del] cts.
-  
-  exists del => a aballz .
-  set p := (x in norm (x [-] _ ) ).
-  simplify_as_R2 e p.
-  move => [c1 [c2 [c1_bd [c2_bd -> ]]]].
-  move => [c3 [c4 [c3_bd [c4_bd -> ]]]].
-
-  Open Scope R.
-  rewrite /ball //= /prod_ball //= /ball //= /AbsRing_ball /abs //= 
-  /minus //= /opp /plus //= -2!/(Rminus _ _) in aballz.
-  case: aballz => dx_del dy_del.
-  set p := (x in norm (x [-] _ ) ).
-  set dx := (a.1 - z.1) in p c1_bd c3_bd dx_del *.
-  set dy := (a.2 - z.2) in p c2_bd c4_bd dy_del *.
-  set dz := a [-] z in p *.
-  rewrite /CauchyRieman in CR_eqs.
-  `Begin eq p. { rewrite /p.
-
-  | {( ((udx z*dx + udy z*dy + (udx (c3,z.2) - udx z) *dx + 
-         (udy (a.1,c4) - udy z) *dy) ,_)  )} 
-    f_equal; field_simplify;
-    rewrite {1}Rmult_comm; f_equal;
-    rewrite Rmult_comm.
-
-  | {( (_, (vdx z*dx + vdy z*dy + (vdx (c1,z.2) - vdx z) *dx + 
-         (vdy (a.1,c2) - vdy z) *dy))  )} 
-    f_equal; field_simplify; 
-    rewrite {1}Rmult_comm; f_equal;
-    rewrite Rmult_comm. 
-  | {( Cplus (udx z *dx + udy z * dy, vdx z * dx + vdy z * dy) (_,_) )}
-    rewrite /Cplus;
-    simpl;
-    f_equal;
-    rewrite 3!Rplus_assoc;
-    do 2 apply (Rplus_eq_compat_l).
-
-  | {( Cplus (vdy z * dx + (-vdx z * dy), _) (_,_) )}
-    move: CR_eqs => [cr_eq1 cr_eq2];
-    rewrite {1}cr_eq1 {1}cr_eq2.
-
-  | {( dz * (vdy z , vdx z)%R + (_,_) )%C}
-    f_equal; rewrite /dz /dx /dy;
-    set p' := LHS;
-    simplify_as_R2 e p';
-    set p' := RHS;
-    simplify_as_R2 e p';
-    unfold_alg;
-    f_equal;
-    field_simplify.
-  `Done.
-  }
-  move => -> {p}.
-  unfold_alg.
-  rewrite Cplus_comm.
-  rewrite Cplus_assoc /dz.
-  unfold_alg.
-  set p := (-(_) + _)%C.
-  simplify_as_R2 e p.
-  rewrite Cplus_0_l.
-
-  set p := (x in x <= _).
-  `Begin Rle p. { rewrite /p.
-  | {(  Rabs _ + Rabs _ )}          
-    apply Cmod_Rabs_plus.
-  | {(  (Rabs _ + Rabs _) + _ )}   
-    apply Rplus_le_compat_r;
-    apply Rabs_triang.
-  | {(  _ + _ + Rabs _ + Rabs _ )}
-     rewrite !Rplus_assoc;
-     do 2 apply Rplus_le_compat_l;
-     apply Rabs_triang.
-  | {(  _ * _ dx + _ * _ dy + _ * _ dx + _ * _ dy  )}         
-    rewrite !Rabs_mult.
-  | {(  _ + _ + _ + _ * Cmod dz   )} 
-     apply Rplus_le_compat_l;
-     apply Rmult_le_compat_l; first (by apply Rabs_pos);
-     apply Cmod_Rabs_imaginary.
-  | {(  _ + _ + _ * Cmod dz + _   )} 
-     apply Rplus_le_compat_r.
-     rewrite !Rplus_assoc.
-     do 2 apply Rplus_le_compat_l.
-     apply Rmult_le_compat_l; first (by apply Rabs_pos).
-     apply Cmod_Rabs_real.
-  | {(  _ + _ * Cmod dz + _ + _   )} 
-     do 2 apply Rplus_le_compat_r.  
-     apply Rplus_le_compat_l.
-     apply Rmult_le_compat_l; first (by apply Rabs_pos).
-     apply Cmod_Rabs_imaginary.
-  | {(   _ * Cmod dz + _ + _ + _  )} 
-     do 3 apply Rplus_le_compat_r.  
-     apply Rmult_le_compat_l; first (by apply Rabs_pos).
-     apply Cmod_Rabs_real.
-  | {(   (_ + _ + _ + _)* Cmod dz )} 
-    idtac;
-    field_simplify;
-    rewrite Rmult_comm. 
-  `Done.
-  }
-  move => H.
-  apply: (transitivity H).
-  apply Rmult_le_compat_r; first by apply Cmod_ge_0.
-
-  move: cts; do 3 copy; 
-  rewrite /ball //= 
-    /AbsRing_ball //= /abs //= /prod_ball
-    /ball//= /AbsRing_ball / abs //=.
-  unfold_alg.
-  move => 
-  /(_ (c3,z.2)) cts_udx
-  /(_ (a.1,c4)) cts_udy
-  /(_ (c1,z.2)) cts_vdx
-  /(_ (a.1,c2)) cts_vdy.
-  rewrite -!/(Rminus _ _) in cts_udx cts_udy cts_vdx cts_vdy.
-  simpl in *.
-  rewrite {H}/p {p}.
-  set p := (x in x <= _).
-  `Begin Rle p. { rewrite /p.
-  | {(  _ + _ + _ + eps/2/2   )} 
-    apply Rplus_le_compat_l;
-    left;
-    apply cts_vdy;
-    split; [ | apply: (Rle_lt_trans _ _ _ c2_bd)]; auto.
-  | {(  _ + _ + eps/2/2 + _   )} 
-    apply Rplus_le_compat_r;
-    apply Rplus_le_compat_l;
-    left;
-    apply cts_vdx;
-    split; [ apply: (Rle_lt_trans _ _ _ c1_bd); auto | ];
-    rewrite Rminus_eq_0 Rabs_R0; apply: cond_pos.
-  | {(  _ + eps/2/2 + _ + _   )} 
-    do 2 apply Rplus_le_compat_r;
-    apply Rplus_le_compat_l.
-    left.
-    apply cts_udy;
-    split; [ apply: dx_del | apply: (Rle_lt_trans _ _ _ c4_bd); auto ].
-  | {(  eps/2/2 + _ + _ + _   )} 
-    do 3 apply Rplus_le_compat_r.
-    left.
-    apply cts_udx.
-    split; [ apply: (Rle_lt_trans _ _ _ c3_bd); auto | ].
-    rewrite Rminus_eq_0 Rabs_R0; apply: cond_pos.
-  `Done.
-  }
-  move => H.
-  apply: (transitivity H).
-  field_simplify.
-  lra.
-Qed.
-
-
-
-
+    move => u v udx udy vdx vdy z CR_diffs CR_eqs.
+    move => /filterlim_locally c_udx.
+    move => /filterlim_locally c_udy.
+    move => /filterlim_locally c_vdx.
+    move => /filterlim_locally c_vdy.
+    simpl in *.
+    case CR_diffs => d_udx.
+    case => d_udy.
+    case => d_vdx.
+    move => d_vdy.
+    rewrite /Holo /is_derive /filterdiff.
+    split; first by apply is_linear_scal_l.
+    move => + /is_filter_lim_locally_unique <- eps.
+    move => _.
+    simpl in *.
+    rewrite -prod_c_topology_eq.
+    apply: (filter_apply (MVT_along_axis d_udx d_udy)).
+    apply: (filter_apply (MVT_along_axis d_vdx d_vdy)).
+    pose eps4 := pos_div_2 (pos_div_2 eps).
+    move => {d_udx d_udy d_vdx d_vdy }.
+    move: c_udx => /(_ eps4).
+    move: c_udy => /(_ eps4).
+    move: c_vdx => /(_ eps4).
+    move: c_vdy => /(_ eps4).
+    move => cts.
+    do 3 move => {cts} /(filter_and _ _ cts) => cts.
+    move: cts => [del] cts.
     
-    over.
+    exists del => a aballz .
+    set p := (x in norm (x [-] _ ) ).
+    simplify_as_R2 e p.
+    move => [c1 [c2 [c1_bd [c2_bd -> ]]]].
+    move => [c3 [c4 [c3_bd [c4_bd -> ]]]].
+  
+    Open Scope R.
+    rewrite /ball //= /prod_ball //= /ball //= /AbsRing_ball /abs //= 
+    /minus //= /opp /plus //= -2!/(Rminus _ _) in aballz.
+    case: aballz => dx_del dy_del.
+    set p := (x in norm (x [-] _ ) ).
+    set dx := (a.1 - z.1) in p c1_bd c3_bd dx_del *.
+    set dy := (a.2 - z.2) in p c2_bd c4_bd dy_del *.
+    set dz := a [-] z in p *.
+    rewrite /CauchyRieman in CR_eqs.
+    `Begin eq p. { rewrite /p.
+  
+    | {( ((udx z*dx + udy z*dy + (udx (c3,z.2) - udx z) *dx + 
+           (udy (a.1,c4) - udy z) *dy) ,_)  )} 
+      f_equal; field_simplify;
+      rewrite {1}Rmult_comm; f_equal;
+      rewrite Rmult_comm.
+  
+    | {( (_, (vdx z*dx + vdy z*dy + (vdx (c1,z.2) - vdx z) *dx + 
+           (vdy (a.1,c2) - vdy z) *dy))  )} 
+      f_equal; field_simplify; 
+      rewrite {1}Rmult_comm; f_equal;
+      rewrite Rmult_comm. 
+    | {( Cplus (udx z *dx + udy z * dy, vdx z * dx + vdy z * dy) (_,_) )}
+      rewrite /Cplus;
+      simpl;
+      f_equal;
+      rewrite 3!Rplus_assoc;
+      do 2 apply (Rplus_eq_compat_l).
+  
+    | {( Cplus (vdy z * dx + (-vdx z * dy), _) (_,_) )}
+      move: CR_eqs => [cr_eq1 cr_eq2];
+      rewrite {1}cr_eq1 {1}cr_eq2.
+  
+    | {( dz * (vdy z , vdx z)%R + (_,_) )%C}
+      f_equal; rewrite /dz /dx /dy;
+      set p' := LHS;
+      simplify_as_R2 e p';
+      set p' := RHS;
+      simplify_as_R2 e p';
+      unfold_alg;
+      f_equal;
+      field_simplify.
+    `Done.
+    }
+    move => -> {p}.
+    unfold_alg.
+    rewrite Cplus_comm.
+    rewrite Cplus_assoc /dz.
+    unfold_alg.
+    set p := (-(_) + _)%C.
+    simplify_as_R2 e p.
+    rewrite Cplus_0_l.
+  
+    set p := (x in x <= _).
+    `Begin Rle p. { rewrite /p.
+    | {(  Rabs _ + Rabs _ )}          
+      apply Cmod_Rabs_plus.
+    | {(  (Rabs _ + Rabs _) + _ )}   
+      apply Rplus_le_compat_r;
+      apply Rabs_triang.
+    | {(  _ + _ + Rabs _ + Rabs _ )}
+       rewrite !Rplus_assoc;
+       do 2 apply Rplus_le_compat_l;
+       apply Rabs_triang.
+    | {(  _ * _ dx + _ * _ dy + _ * _ dx + _ * _ dy  )}         
+      rewrite !Rabs_mult.
+    | {(  _ + _ + _ + _ * Cmod dz   )} 
+       apply Rplus_le_compat_l;
+       apply Rmult_le_compat_l; first (by apply Rabs_pos);
+       apply Cmod_Rabs_imaginary.
+    | {(  _ + _ + _ * Cmod dz + _   )} 
+       apply Rplus_le_compat_r.
+       rewrite !Rplus_assoc.
+       do 2 apply Rplus_le_compat_l.
+       apply Rmult_le_compat_l; first (by apply Rabs_pos).
+       apply Cmod_Rabs_real.
+    | {(  _ + _ * Cmod dz + _ + _   )} 
+       do 2 apply Rplus_le_compat_r.  
+       apply Rplus_le_compat_l.
+       apply Rmult_le_compat_l; first (by apply Rabs_pos).
+       apply Cmod_Rabs_imaginary.
+    | {(   _ * Cmod dz + _ + _ + _  )} 
+       do 3 apply Rplus_le_compat_r.  
+       apply Rmult_le_compat_l; first (by apply Rabs_pos).
+       apply Cmod_Rabs_real.
+    | {(   (_ + _ + _ + _)* Cmod dz )} 
+      idtac;
+      field_simplify;
+      rewrite Rmult_comm. 
+    `Done.
+    }
+    move => H.
+    apply: (transitivity H).
+    apply Rmult_le_compat_r; first by apply Cmod_ge_0.
+  
+    move: cts; do 3 copy; 
+    rewrite /ball //= 
+      /AbsRing_ball //= /abs //= /prod_ball
+      /ball//= /AbsRing_ball / abs //=.
+    unfold_alg.
+    move => 
+    /(_ (c3,z.2)) cts_udx
+    /(_ (a.1,c4)) cts_udy
+    /(_ (c1,z.2)) cts_vdx
+    /(_ (a.1,c2)) cts_vdy.
+    rewrite -!/(Rminus _ _) in cts_udx cts_udy cts_vdx cts_vdy.
+    simpl in *.
+    rewrite {H}/p {p}.
+    set p := (x in x <= _).
+    `Begin Rle p. { rewrite /p.
+    | {(  _ + _ + _ + eps/2/2   )} 
+      apply Rplus_le_compat_l;
+      left;
+      apply cts_vdy;
+      split; [ | apply: (Rle_lt_trans _ _ _ c2_bd)]; auto.
+    | {(  _ + _ + eps/2/2 + _   )} 
+      apply Rplus_le_compat_r;
+      apply Rplus_le_compat_l;
+      left;
+      apply cts_vdx;
+      split; [ apply: (Rle_lt_trans _ _ _ c1_bd); auto | ];
+      rewrite Rminus_eq_0 Rabs_R0; apply: cond_pos.
+    | {(  _ + eps/2/2 + _ + _   )} 
+      do 2 apply Rplus_le_compat_r;
+      apply Rplus_le_compat_l.
+      left.
+      apply cts_udy;
+      split; [ apply: dx_del | apply: (Rle_lt_trans _ _ _ c4_bd); auto ].
+    | {(  eps/2/2 + _ + _ + _   )} 
+      do 3 apply Rplus_le_compat_r.
+      left.
+      apply cts_udx.
+      split; [ apply: (Rle_lt_trans _ _ _ c3_bd); auto | ].
+      rewrite Rminus_eq_0 Rabs_R0; apply: cond_pos.
+    `Done.
+    }
+    move => H.
+    apply: (transitivity H).
+    field_simplify.
+    lra.
+  Qed.
+
 End Holo.
 
 

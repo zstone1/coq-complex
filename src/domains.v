@@ -65,17 +65,11 @@ Section PathConnected .
     forall x y : T,
     D x ->
     D y ->
-    exists f : { t : R  | 0 <= t <= 1 } -> T,
-    f 0 = x /\ 
-    f 1 = y /\ 
+    exists f : R -> T,
+    f 0 = x /\ filterlim f (at_right 0) (locally x) /\ 
+    f 1 = y /\ filterlim f (at_left  1) (locally y) /\ 
+    (forall t, 0 < t < 1 -> continuous f t) /\
     forall t : { t: R | 0 <= t <= 1 }, D (f t).
-  Obligation 1.
-  nra.
-  Qed.
-  Obligation 2.
-  nra.
-  Qed.
-
   Program Definition convex  {T: NormedModule R_AbsRing} (D: T -> Prop) := 
     forall (x y : T) (t : R),
       D x -> 
@@ -83,23 +77,64 @@ Section PathConnected .
       0 <= t <= 1 -> 
     D (plus (scal (1-t) x) ( scal t  y)).
    
+  Lemma cts_all_cts_on:  
+    forall {T: NormedModule R_AbsRing} (f:R -> T) x y,
+    f 0 = x -> 
+    f 1 = y ->
+    (forall t, continuous f t) ->
+    filterlim f (at_right 0) (locally x) /\ 
+    filterlim f (at_left  1) (locally y) /\ 
+    (forall t, 0 < t < 1 -> continuous f t).
+  Proof.        
+    move => T f x y f0 f1 cts.
+    repeat split; auto.
+    - apply: filterlim_filter_le_1.
+      apply: filter_le_within.
+      rewrite -f0.
+      apply cts.
+    - apply: filterlim_filter_le_1.
+      apply: filter_le_within.
+      rewrite -f1.
+      apply cts.
+  Qed.
+
   Lemma convex_path_connected {T: NormedModule R_AbsRing} (D: T -> Prop):
     convex D -> path_connected D.
   Proof.
     rewrite /convex /path_connected. 
-    move => pathD x y.
-    exists (fun t: {t: R | 0 <= t <= 1} => 
-      (plus (scal (1 - proj1_sig t) x) (scal (proj1_sig t) y))).
+    move => pathD x y Dx Dy. 
+    pose f := fun t => (plus (scal (1 - t) x) (scal t y)).
+    
+    exists f.
     simpl.
-    rewrite Rcomplements.Rminus_eq_0.
-    rewrite Rminus_0_r.
-    rewrite 2!scal_zero_l.
-    rewrite 2!scal_one.
-    rewrite plus_zero_l.
-    rewrite plus_zero_r.
+    have f0: (f 0 = x). {
+      rewrite /f.
+      rewrite !Rminus_0_r.
+      rewrite scal_zero_l.
+      rewrite scal_one.
+      rewrite plus_zero_r.
+      auto.
+    }
+    have f1: (f 1 = y). {
+      rewrite /f.
+      rewrite /f !Rcomplements.Rminus_eq_0.
+      rewrite scal_zero_l.
+      rewrite scal_one.
+      rewrite plus_zero_l.
+      auto.
+    }
     repeat split; auto.
-    case => t tle.
-    apply pathD; simpl; auto.
+    - auto_continuous f 0 => cts. 
+      apply: filterlim_filter_le_1; first by apply: filter_le_within.
+      rewrite -[x in filterlim _ _ (locally x)] f0.
+      apply cts.
+    - auto_continuous f 1 => cts. 
+      apply: filterlim_filter_le_1; first by apply: filter_le_within.
+      rewrite -[x in filterlim _ _ (locally x)] f1.
+      apply cts.
+    - move => t _; auto_continuous f t; auto.
+    - move => t. apply pathD; simpl; auto.
+      case: t; auto.
   Qed.
 End PathConnected.
 
@@ -217,7 +252,7 @@ Section Domain.
     dec_DP := _;
   |}.
   Obligation 1. apply ODisk_open. nra. Qed.
-  Obligation 2. apply convex_path_connected. apply ODisk_convex. nra. Qed.
+  Obligation 2. apply: convex_path_connected. apply ODisk_convex. nra. Qed.
   Obligation 3. 
     apply iff_reflect; split; case (ODisk_dec); by auto.
   Qed.
