@@ -718,6 +718,15 @@ Definition SmoothPath (f: R -> R -> R) f_x f_y f_xy f_yx x y :=
   .
 
 Open Scope R.
+
+Lemma differentiable_pt_lim_dirs: forall f a b dx dy, 
+  differentiable_pt_lim f a b dx dy -> 
+    is_derive ( fun x => f x b) a dx /\
+    is_derive ( f a) b dy.
+Proof.
+  move => f a b dx dy.
+Abort.
+
 Lemma path_independence_part_1: 
   forall 
     (u v: R -> R -> R) udx udy vdx vdy
@@ -739,7 +748,17 @@ Proof.
   move => u v udx udy vdx vdy g1 g2 g2_r g2_t g1_r g1_t r t.
   move => du dv dg1 dg2 swapdiff1 swapdiff2 CR_eq//=.
   set p := RHS.
-  have ug : ( differentiable_pt ug r t).
+  have ug : ( differentiable_pt_lim (fun r t => u (g1 r t) (g2 r t)) 
+                r t (udx * (g1_r r t) + udy * (g2_r r t))
+                    (udx * (g1_t r t) + udy * (g2_t r t))
+            )by
+    apply differentiable_pt_lim_comp; auto.
+  have vg : ( differentiable_pt_lim (fun r t => v (g1 r t) (g2 r t)) 
+                r t (vdx * (g1_r r t) + vdy * (g2_r r t))
+                    (vdx * (g1_t r t) + vdy * (g2_t r t))
+            )by
+    apply differentiable_pt_lim_comp; auto.
+  
   `Begin eq p. { rewrite {}/p.
 
   | {(   Derive _ r - Derive _ r   )} rewrite ?Derive_minus.
@@ -807,7 +826,13 @@ Proof.
   lra.
 Unshelve.
 
+2: {
+match goal with 
+  | H: differentiable_pt_lim ?f ?x ?y ?dx ?dy |- 
+    ex_derive (?f ?x) ?y => idtac
+  end.
 
+  }
 Qed.
   apply Rplus_eq_compat_r.
   rewrite ?Rplus_assoc.
