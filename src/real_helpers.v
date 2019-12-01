@@ -1,6 +1,6 @@
-Require Import Reals Psatz Lra.
+Require Import Reals Psatz Lra Bool RelationClasses.
 From Coquelicot Require Import Continuity 
-  Derive Hierarchy AutoDerive Rbar Complex.
+  Derive Hierarchy AutoDerive Rbar Complex RInt RInt_analysis.
 From Coq Require Import ssreflect ssrfun ssrbool.
 Close Scope boolean_if_scope.
 Require Import Program.
@@ -18,6 +18,32 @@ Require Import ext_rewrite.
 
 
 Open Scope R.
+
+
+Instance cls_rle_refl: Reflexive Rle := Rle_refl. 
+Instance cls_rle_trans: Transitive Rle := Rle_trans. 
+Instance cls_rlt_trans: Transitive Rlt := Rlt_trans. 
+
+Lemma eqn_notation {A}: forall x y (R: A -> A -> Prop) P, 
+  (R x y) ->
+  (R x y -> P) -> P.
+Proof. tauto. Qed.
+
+Tactic Notation 
+  "`Begin" uconstr(R) constr(x):=
+  refine (eqn_notation (x:=x) (R:=R) _ _).
+
+Tactic Notation
+  "|" "{" uconstr(x) "}" tactic(t) :=
+   refine (transitivity (y:= x) _ _);
+   first (t;
+   try now reflexivity
+   ).
+
+
+Tactic Notation
+  "`Done" :=
+   (auto using reflexivity).
 
 Lemma sqrt_lt_left : forall x y, 0 <= x -> 0 <= y -> sqrt x < y <-> x < y^2.
 Proof.
@@ -154,7 +180,7 @@ Proof.
     over.
     auto_derive_all.
 Qed.
-
+    
 Ltac proj_proof eps := 
    apply (filter_imp (fun _ => True)); 
    [
@@ -190,6 +216,26 @@ Proof.
   apply is_linear_snd.
 Qed.
 
+
+Lemma is_derive_pair_iff {K : AbsRing} {M : NormedModule K} :
+  forall (f g f' g': K -> M) (x: K), 
+  (is_derive f x (f' x) /\
+  is_derive g x (g' x)) <->
+  is_derive (fun q => (f q, g q)) x (f' x, g' x).
+Proof.
+  move => f g f' g' x. 
+  split;
+  first by move => [ ? ?]; apply: is_derive_pair; auto.
+  move => H; split.
+  - eapply (is_derive_ext (fun t => fst (f t, g t) )); first by auto.
+    replace (f' x) with (fst (f' x, g' x)); last by auto.
+    apply (filterdiff_comp _ fst _ fst H). 
+    apply filterdiff_fst.
+  - eapply (is_derive_ext (fun t => snd (f t, g t) )); first by auto.
+    replace (g' x) with (snd (f' x, g' x)); last by auto.
+    apply (filterdiff_comp _ snd _ snd H). 
+    apply filterdiff_snd.
+Qed.
 Hint Resolve is_derive_pair : derive_compute.
 Hint Resolve derive_ex_derive : derive_compute.
 Hint Resolve filterdiff_ex_filterdiff : derive_compute.
@@ -234,3 +280,21 @@ Ltac auto_continuous x z :=
   have: continuous x z;
   rewrite /x;
   repeat auto_continuous_aux.
+
+Ltac destruct_match := 
+  match goal with 
+  | |- context[match ?x with _ => _ end]  => 
+    let p := fresh in
+    let l := fresh in
+    set p := x;
+    case l: p
+  end.
+    
+Lemma RleP : forall x y,
+  reflect (x <= y) (Rle_dec x y).
+Proof.
+  move => x y.
+  apply/iff_reflect.
+  case(Rle_dec x y) => H; split => H'; auto.
+  discriminate.
+Qed.
