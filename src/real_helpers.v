@@ -218,21 +218,21 @@ Qed.
 
 
 Lemma is_derive_pair_iff {K : AbsRing} {M : NormedModule K} :
-  forall (f g f' g': K -> M) (x: K), 
-  (is_derive f x (f' x) /\
-  is_derive g x (g' x)) <->
-  is_derive (fun q => (f q, g q)) x (f' x, g' x).
+  forall (f g : K -> M) f' g' (x: K), 
+  (is_derive f x (f') /\
+  is_derive g x (g')) <->
+  is_derive (fun q => (f q, g q)) x (f', g').
 Proof.
   move => f g f' g' x. 
   split;
   first by move => [ ? ?]; apply: is_derive_pair; auto.
   move => H; split.
   - eapply (is_derive_ext (fun t => fst (f t, g t) )); first by auto.
-    replace (f' x) with (fst (f' x, g' x)); last by auto.
+    replace (f') with (fst (f', g')); last by auto.
     apply (filterdiff_comp _ fst _ fst H). 
     apply filterdiff_fst.
   - eapply (is_derive_ext (fun t => snd (f t, g t) )); first by auto.
-    replace (g' x) with (snd (f' x, g' x)); last by auto.
+    replace (g') with (snd (f', g')); last by auto.
     apply (filterdiff_comp _ snd _ snd H). 
     apply filterdiff_snd.
 Qed.
