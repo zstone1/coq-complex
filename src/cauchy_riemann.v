@@ -288,7 +288,7 @@ Section Holo.
     eauto.
   Qed.
 
-  Theorem CauchyRieman_Easy: forall u v udx udy vdx vdy g z,
+  Theorem CauchyRiemann_Easy: forall u v udx udy vdx vdy g z,
     CR_eqs u v udx udy vdx vdy z -> 
     Holo (fun p => (u p, v p)) g z ->
     (CauchyRieman u v udx udy vdx vdy z /\ (g z).1 = (vdy z) /\ (g z).2 = vdx z)
@@ -315,6 +315,29 @@ Section Holo.
   Infix "[-]" := minus (at level 199).
   Infix "[.]" := scal (at level 10).
 
+  Lemma CauchyRiemann_Easy_2: forall u v g z,
+    locally z (Holo (fun p => (u p.1 p.2, v p.1 p.2)) g) ->
+    Derive (v ^~ z.2 ) z.1 = (- (Derive (u z.1) z.2))%R /\
+    Derive (u ^~ z.2 ) z.1 = (Derive (v z.1) z.2) .
+  Proof.
+    move => u v g z.
+    copy.
+    move => /holo_partials [udx [udy [vdx [vdy +]]]].
+    move => H /locally_singleton H'.
+    have := CauchyRiemann_Easy H H'.
+    move : H => [/locally_singleton /is_derive_unique + [
+                 /locally_singleton /is_derive_unique + [
+                 /locally_singleton /is_derive_unique + 
+                 /locally_singleton /is_derive_unique +]] ].
+    simpl in *.
+    do 4 move ->.
+    do 2 case.
+    do 2 move ->.
+    move => _.
+    rewrite Ropp_involutive.
+    auto.
+  Qed.
+  
   Lemma Rabs_lt_between_min_max: 
      forall x y z : R, Rmin x y < z < Rmax x y -> Rabs (z - y) < Rabs (x - y).
   Proof.

@@ -273,10 +273,23 @@ Proof.
   split; [exists l2 | exists l1]; auto.
 Qed.
 
+Lemma holomorphic_differentiable_pt_lim: forall u v u' v' x y,
+  locally (x,y) ( fun z => 
+    Holo (fun z => (u z.1 z.2, v z.1 z.2)) 
+         (fun z => (u' z.1 z.2, v' z.1 z.2))
+     z) -> 
+  differentiable_pt u x y /\ 
+  differentiable_pt v x y .
+Proof.
+  move => u v x y.
+Admitted.
+  
+
 Lemma path_independence_part_2:
-  forall (u v: R -> R -> R) r t g1 g2, 
+  forall (u v u' v': R -> R -> R) r t g1 g2, 
   let g:= fun p q => (g1 p q, g2 p q) in
   let f:= fun z => (u z.1 z.2, v z.1 z.2) in
+  let f':= fun z => (u' z.1 z.2, v' z.1 z.2) in
 
   (*smooth path*)
   locally_2d (fun r' t' =>
@@ -292,15 +305,15 @@ Lemma path_independence_part_2:
   continuity_2d_pt (fun u v => Derive (fun z => Derive (fun t => g2 z t) v) u) r t ->
   continuity_2d_pt (fun u v => Derive (fun z => Derive (fun t => g2 t z) u) v) r t ->
   
-  is_Holo f (g r t) -> 
+  locally (g r t) (fun z => Holo f f' z) -> 
   let g_t := fun p q => (Derive (g1 p) q, Derive (g2 p) q) in
   let g_r := fun p q => (Derive (g1 ^~ q) p, Derive (g2 ^~ q) p) in
   Derive ( fun t0 => Re (f (g r t0) * g_r r t0 ))%C t =
   Derive ( fun r0 => Re (f (g r0 t) * g_t r0 t ))%C r  
 .
 Proof.
-  move => u v r t g1 g2 g f g1_smooth g2_smooth .
-  move => g1_rt_cts g1_tt_cts g2_rt_cts g2_tr_cts.
+  move => u v u' v' r t g1 g2 g f f' g1_smooth g2_smooth .
+  move => g1_rt_cts g1_tt_cts g2_rt_cts g2_tr_cts holo.
   move => g_t g_r.
   simpl.
   pose g1_r p q := Derive (g1 ^~ q) p.
@@ -327,8 +340,12 @@ Proof.
   symmetry.
   eapply (@path_independence_part_1 u v _ _ _ _ g1 g2 _ _ _ _ r t).
   9, 10:  apply Schwarz.
-  - admit.
-  - admit.
+  - apply differentiable_pt_unique. 
+    apply holomorphic_differentiable_pt_lim in holo.
+    tauto.
+  - apply differentiable_pt_unique. 
+    apply holomorphic_differentiable_pt_lim in holo.
+    tauto.
   - apply locally_2d_singleton in g1_smooth.
     apply differentiable_pt_unique; auto.
     by case: g1_smooth => H _.
@@ -365,8 +382,12 @@ Proof.
     repeat split; auto.
   - auto.
   - auto.
-  - auto.
-
+  - rewrite /f in holo. have := @CauchyRiemann_Easy_2 u v f' (g r t). 
+    simpl in *.
+    rewrite -prod_c_topology_eq.
+    move => /(_ holo).
+    case.
+    auto.
 Proof.
 
 
