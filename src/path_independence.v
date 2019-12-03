@@ -349,26 +349,26 @@ Proof.
   exists pos_half => u v _ _ . field_simplify_eq; auto.
 Qed.
 
-Lemma path_independence_part_2:
+Definition SmoothPath g1 g2 r t:= 
+  locally_2d (fun r' t' =>
+    differentiable_pt g1 r' t' /\
+    differentiable_pt (fun p q => Derive (g1 p) q) r' t' /\
+    differentiable_pt (fun p q => Derive (g1 ^~ q) p) r' t') r t /\
+  locally_2d (fun r' t' =>
+    differentiable_pt g2 r' t' /\
+    differentiable_pt (fun p q => Derive (g2 p) q) r' t' /\
+    differentiable_pt (fun p q => Derive (g2 ^~ q) p) r' t') r t /\
+  continuity_2d_pt (fun u v => Derive (fun z => Derive (fun t => g1 z t) v) u) r t /\
+  continuity_2d_pt (fun u v => Derive (fun z => Derive (fun t => g1 t z) u) v) r t /\
+  continuity_2d_pt (fun u v => Derive (fun z => Derive (fun t => g2 z t) v) u) r t /\
+  continuity_2d_pt (fun u v => Derive (fun z => Derive (fun t => g2 t z) u) v) r t 
+.
+Lemma path_independence_part_2_real:
   forall (u v u' v': R -> R -> R) r t g1 g2, 
   let g:= fun p q => (g1 p q, g2 p q) in
   let f:= fun z => (u z.1 z.2, v z.1 z.2) in
   let f':= fun z => (u' z.1 z.2, v' z.1 z.2) in
-
-  (*smooth path*)
-  locally_2d (fun r' t' =>
-    differentiable_pt g1 r' t' /\
-    differentiable_pt (fun p q => Derive (g1 p) q) r' t' /\
-    differentiable_pt (fun p q => Derive (g1 ^~ q) p) r' t') r t ->
-  locally_2d (fun r' t' =>
-    differentiable_pt g2 r' t' /\
-    differentiable_pt (fun p q => Derive (g2 p) q) r' t' /\
-    differentiable_pt (fun p q => Derive (g2 ^~ q) p) r' t') r t ->
-  continuity_2d_pt (fun u v => Derive (fun z => Derive (fun t => g1 z t) v) u) r t ->
-  continuity_2d_pt (fun u v => Derive (fun z => Derive (fun t => g1 t z) u) v) r t ->
-  continuity_2d_pt (fun u v => Derive (fun z => Derive (fun t => g2 z t) v) u) r t ->
-  continuity_2d_pt (fun u v => Derive (fun z => Derive (fun t => g2 t z) u) v) r t ->
-  
+  SmoothPath g1 g2 r t -> 
   Holo f f' (g r t) -> 
   let g_t := fun p q => (Derive (g1 p) q, Derive (g2 p) q) in
   let g_r := fun p q => (Derive (g1 ^~ q) p, Derive (g2 ^~ q) p) in
@@ -376,8 +376,8 @@ Lemma path_independence_part_2:
   Derive ( fun r0 => Re (f (g r0 t) * g_t r0 t ))%C r  
 .
 Proof.
-  move => u v u' v' r t g1 g2 g f f' g1_smooth g2_smooth .
-  move => g1_rt_cts g1_tt_cts g2_rt_cts g2_tr_cts holo.
+  move => u v u' v' r t g1 g2 g f f' [g1_smooth [g2_smooth +]] .
+  move => [g1_rt_cts [g1_tt_cts [g2_rt_cts g2_tr_cts]]] holo.
   move => g_t g_r.
   simpl.
   pose g1_r p q := Derive (g1 ^~ q) p.
@@ -459,8 +459,73 @@ Proof.
     simpl in *.
     tauto.
 Qed.
-Proof.
 
+Lemma Holo_mult: forall f g z k,
+  Holo f g z -> Holo (fun q => k * (f q)) (fun q => k * (g q)) z.
+Proof.
+  move => f g z k.
+  move => /(filterdiff_scal_r_fct k ). 
+  have H := Cmult_comm.
+  move /(_ H).
+  under ext_filterdiff_d => t.
+    rewrite scal_assoc.
+    have ->: (mult k t = mult t k) by unfold_alg.
+    rewrite -scal_assoc.
+  over.
+  rewrite -/(is_derive _ _ _).
+  unfold_alg.
+Qed.
+
+
+Lemma path_independence_part_2_imaginary:
+  forall (u v u' v': R -> R -> R) r t g1 g2, 
+  let g:= fun p q => (g1 p q, g2 p q) in
+  let f:= fun z => (u z.1 z.2, v z.1 z.2) in
+  let f':= fun z => (u' z.1 z.2, v' z.1 z.2) in
+  SmoothPath g1 g2 r t -> 
+  Holo f f' (g r t) -> 
+  let g_t := fun p q => (Derive (g1 p) q, Derive (g2 p) q) in
+  let g_r := fun p q => (Derive (g1 ^~ q) p, Derive (g2 ^~ q) p) in
+  Derive ( fun t0 => Im (f (g r t0) * g_r r t0 ))%C t =
+  Derive ( fun r0 => Im (f (g r0 t) * g_t r0 t ))%C r  
+.
+Proof. 
+  move => u v u' v' r t g1 g2 g f f' smooth.
+  move => /(Holo_mult Ci).
+  move => + g_t g_r.
+  rewrite /Holo /is_derive.
+  under ext_filterdiff_glo => z.
+    set p := _ * _.
+    simplify_as_R2 e p.
+  over.
+  under ext_filterdiff_d => z.
+    set p := _ * _.
+    simplify_as_R2 e p.
+  over.
+  move => holo.
+  rewrite -/(is_derive _ _ _) in holo.
+  have := @path_independence_part_2_real 
+    (fun x y => -v x y)%R
+    (fun x y => u x y)
+    (fun x y => -v' x y)%R
+    (fun x y => u' x y)
+    r t g1 g2
+    smooth
+    holo
+  .
+  move => H.
+  rewrite -[LHS]Ropp_involutive -[RHS]Ropp_involutive. 
+  apply Ropp_eq_compat. 
+  rewrite -2!Derive_opp.
+  simpl in *.
+  SearchAbout( - (_ + _)).
+  under Derive_ext => t0 do 
+    rewrite Rplus_comm Ropp_plus_minus_distr Ropp_mult_distr_l.
+  symmetry.
+  under Derive_ext => r0 do 
+    rewrite Rplus_comm Ropp_plus_minus_distr Ropp_mult_distr_l.
+  auto.
+Qed.
 
 
   Definition c_circle (t:R):C := (cos t, sin t).
