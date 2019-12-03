@@ -273,17 +273,81 @@ Proof.
   split; [exists l2 | exists l1]; auto.
 Qed.
 
-Lemma holomorphic_differentiable_pt_lim: forall u v u' v' x y,
-  locally (x,y) ( fun z => 
-    Holo (fun z => (u z.1 z.2, v z.1 z.2)) 
-         (fun z => (u' z.1 z.2, v' z.1 z.2))
-     z) -> 
-  differentiable_pt u x y /\ 
-  differentiable_pt v x y .
+Lemma is_linear_compose {K : AbsRing} {U V W : NormedModule K}
+  (l1 : U -> V) (l2 : V -> W) :
+  is_linear l1 -> is_linear l2 -> is_linear (compose l2 l1).
 Proof.
-  move => u v x y.
-Admitted.
-  
+  unfold compose.
+  apply is_linear_comp.
+Qed.
+
+
+Lemma holo_differentiable_pt_lim_imaginary: forall (f:C -> C) x y g,
+  is_derive (K:=C_AbsRing) f (x,y) g-> 
+  differentiable_pt_lim (fun x y => (f (x,y)).2) x y g.2 g.1 .
+Proof.
+  move => f x y g.
+  rewrite /is_derive /filterdiff.
+  move => [_ /(_ (x,y))] .
+  move => /(_ (@is_filter_lim_locally (AbsRing_UniformSpace C_AbsRing) (x,y) )).
+  move => + eps.
+  have erpos : ( 0 < eps /(sqrt 2)) by apply Rdiv_lt_0_compat;
+    [apply (cond_pos eps) | apply Rlt_sqrt2_0 ]. 
+  pose epsr2 := mkposreal (eps/ (sqrt 2)) erpos .
+  move => /(_ epsr2) /prod_c_topology_eq [del H].
+  exists del => u v uball vball.
+  move :H => /(_ (u,v)).
+  unfold_alg; rewrite /AbsRing_ball. unfold_alg .
+  have Q: (Rabs (u-x) < del /\ Rabs (v-y) < del) by auto.
+  move => /(_ Q) {Q}.
+  set p := (x in Cmod x <= _).
+  simplify_as_R2 e p.
+  set p := (x in Cmod (x,_)).
+  set q := (x in Cmod (_,x)).
+  set l := (x in Rabs x).
+  set dz := ((u,v) + _)%C.
+  simplify_as_R2 e dz.
+  have ->: (l = q) by rewrite /l /q; field_simplify_eq.
+  move => H.
+  apply: Rle_trans.
+  apply: Cmod_Rabs_imaginary p _.
+  apply: Rle_trans.
+  apply H.
+  apply (Rle_trans _ (eps * Rmax (Rabs (u-x)) (Rabs (v-y)))); last by reflexivity.
+  rewrite /Rdiv.
+  rewrite Rmult_assoc.
+  apply Rmult_le_compat_l; first by left; apply: cond_pos.
+  field_simplify .
+  apply/ Rle_div_l; first by apply Rlt_sqrt2_0.
+  rewrite Rmult_comm.
+  apply Cmod_2Rmax.
+  apply Rsqr_gt_0_0.
+  rewrite Rsqr_sqrt; lra.
+Qed.
+
+Lemma holo_differentiable_pt_lim_real: forall (f:C -> C) x y g,
+  is_derive (K:=C_AbsRing) f (x,y) g-> 
+  differentiable_pt_lim (fun x y => (f (x,y)).1) x y g.1 (-g)%C.2 .
+Proof.
+  Open Scope C.
+  move => f x y g.
+  move => /(filterdiff_scal_r_fct Ci ). 
+  have H := Cmult_comm.
+  move /(_ H).
+  under ext_filterdiff_d => t.
+    rewrite scal_assoc.
+    have ->: (mult Ci t = mult t Ci) by unfold_alg.
+    rewrite -scal_assoc.
+  over.
+  move /holo_differentiable_pt_lim_imaginary.
+  simpl in *.
+  set p := (x in differentiable_pt_lim _ _ _ x _).
+  simplify_R e p.
+  set p := (x in differentiable_pt_lim _ _ _ _ x).
+  simplify_R e p.
+  eapply differentiable_pt_lim_ext.
+  exists pos_half => u v _ _ . field_simplify_eq; auto.
+Qed.
 
 Lemma path_independence_part_2:
   forall (u v u' v': R -> R -> R) r t g1 g2, 
@@ -305,7 +369,7 @@ Lemma path_independence_part_2:
   continuity_2d_pt (fun u v => Derive (fun z => Derive (fun t => g2 z t) v) u) r t ->
   continuity_2d_pt (fun u v => Derive (fun z => Derive (fun t => g2 t z) u) v) r t ->
   
-  locally (g r t) (fun z => Holo f f' z) -> 
+  Holo f f' (g r t) -> 
   let g_t := fun p q => (Derive (g1 p) q, Derive (g2 p) q) in
   let g_r := fun p q => (Derive (g1 ^~ q) p, Derive (g2 ^~ q) p) in
   Derive ( fun t0 => Re (f (g r t0) * g_r r t0 ))%C t =
@@ -341,11 +405,15 @@ Proof.
   eapply (@path_independence_part_1 u v _ _ _ _ g1 g2 _ _ _ _ r t).
   9, 10:  apply Schwarz.
   - apply differentiable_pt_unique. 
-    apply holomorphic_differentiable_pt_lim in holo.
-    tauto.
+    apply holo_differentiable_pt_lim_real in holo.
+    simpl in *.
+    eexists. eexists.
+    eapply holo.
   - apply differentiable_pt_unique. 
-    apply holomorphic_differentiable_pt_lim in holo.
-    tauto.
+    apply holo_differentiable_pt_lim_imaginary in holo.
+    simpl in *.
+    eexists. eexists.
+    eapply holo.
   - apply locally_2d_singleton in g1_smooth.
     apply differentiable_pt_unique; auto.
     by case: g1_smooth => H _.
@@ -382,12 +450,15 @@ Proof.
     repeat split; auto.
   - auto.
   - auto.
-  - rewrite /f in holo. have := @CauchyRiemann_Easy_2 u v f' (g r t). 
+  - rewrite /f in holo. 
+    SearchAbout ( - _ = _ )%R.
+    rewrite -[LHS]Ropp_involutive.
+    apply Ropp_eq_compat.
+    symmetry.
+    move: holo => /CauchyRiemann_Easy.
     simpl in *.
-    rewrite -prod_c_topology_eq.
-    move => /(_ holo).
-    case.
-    auto.
+    tauto.
+Qed.
 Proof.
 
 

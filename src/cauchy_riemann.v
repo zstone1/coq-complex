@@ -132,18 +132,7 @@ Ltac copy :=
   let j := fresh in
    move => h; pose proof h as j; move: h j.
 Section Holo.
-  Definition CR_eqs (u v udx udy vdx vdy: C -> R)  z := 
-    locally z ( fun q =>
-      is_derive (fun t => u (t,q.2)) q.1 (udx q)) /\
-    locally z ( fun q =>
-      is_derive (fun t => u (q.1,t)) q.2 (udy q)) /\
-    locally z ( fun q =>
-      is_derive (fun t => v (t,q.2)) q.1 (vdx q)) /\
-    locally z ( fun q =>
-      is_derive (fun t => v (q.1,t)) q.2 (vdy q))
-    .
-
-  Definition CauchyRieman (u v udx udy vdx vdy: C -> R) z:=
+  Definition CauchyRiemann (udx udy vdx vdy: C -> R) z:=
     udx z = vdy z /\ 
     udy z = (- vdx z)%R
     .
@@ -266,36 +255,32 @@ Section Holo.
     ];
     [auto | apply filterdiff_fst | auto | apply filterdiff_snd].
   Qed.
-
+  Locate Copp.
   Lemma holo_partials: forall u v g1 g2 z, 
-    locally z (Holo (fun q => (u q, v q)) (fun q => (g1 q, g2 q))) -> 
-    exists udx udy vdx vdy, CR_eqs u v udx udy vdx vdy z . 
+    Holo (fun q => (u q, v q)) (fun q => (g1 q, g2 q)) z -> 
+    ex_derive (fun t => u (t,z.2)) z.1 /\
+    ex_derive (fun t => u (z.1,t)) z.2 /\
+    ex_derive (fun t => v (t,z.2)) z.1 /\
+    ex_derive (fun t => v (z.1,t)) z.2
+  .
   Proof.
-    move => u v g1 g2 z [eps H].
-    eexists ?[udx].
-    eexists ?[udy].
-    eexists ?[vdx].
-    eexists ?[vdy].
-    rewrite /CR_eqs.
-    rewrite 4!prod_c_topology_eq.
-    repeat split; exists eps => y byz;
-    move: H => /( _ y byz).
+    move => u v g1 g2 z H.
+    split; [ | split]; [ | | split]; eexists;
+    move: H .
     1,3: move => /c_diff_real_axis.
     3,4: move => /c_diff_imaginary_axis.
     all: move => /is_derive_pair_iff; simpl; case; eauto.
-    pose h q := (- g2 q)%R.
-    replace (- g2 y)%R with (h y) by  auto.
-    eauto.
   Qed.
 
-  Theorem CauchyRiemann_Easy: forall u v udx udy vdx vdy g z,
-    CR_eqs u v udx udy vdx vdy z -> 
-    Holo (fun p => (u p, v p)) g z ->
-    (CauchyRieman u v udx udy vdx vdy z /\ (g z).1 = (vdy z) /\ (g z).2 = vdx z)
+  Theorem CauchyRiemann_Easy: forall u v g1 g2 z,
+    Holo (fun p => (u p, v p)) (fun p => (g1 p, g2 p)) z ->
+    Derive (fun t => u (t,z.2)) z.1 = Derive (fun t => v (z.1,t)) z.2 /\ 
+    Derive (fun t => u (z.1,t)) z.2 = Ropp(Derive (fun t => v (t,z.2)) z.1) /\
+    g1 z = Derive (fun t => v (z.1,t)) z.2  /\
+    g2 z = Derive (fun t => v (t,z.2)) z.1
     .
   Proof.
-    move => u v udx udy vdx vdy g z .
-    rewrite /Holo /CauchyRieman => cr_eqs .
+    move => u v g1 g2 z.
     copy.
     case /c_diff_imaginary_axis /diff_split_coords .
     move /is_derive_unique => + /is_derive_unique => h1 h2.
@@ -303,41 +288,13 @@ Section Holo.
     case /c_diff_real_axis /diff_split_coords .
     move /is_derive_unique => + /is_derive_unique => h3 h4.
     move: h1 h2 h3 h4.
-    
-    move: cr_eqs; rewrite /CR_eqs.
-    do 3 (case; move /locally_singleton/is_derive_unique ->) .
-    move /locally_singleton /is_derive_unique ->.
-    move => *.
-    repeat split; congruence.
+    by repeat move ->.
   Qed.
   Notation "[| x |]" := (norm x) (at level 100).
   Infix "[+]" := plus (at level 199).
   Infix "[-]" := minus (at level 199).
   Infix "[.]" := scal (at level 10).
 
-  Lemma CauchyRiemann_Easy_2: forall u v g z,
-    locally z (Holo (fun p => (u p.1 p.2, v p.1 p.2)) g) ->
-    Derive (v ^~ z.2 ) z.1 = (- (Derive (u z.1) z.2))%R /\
-    Derive (u ^~ z.2 ) z.1 = (Derive (v z.1) z.2) .
-  Proof.
-    move => u v g z.
-    copy.
-    move => /holo_partials [udx [udy [vdx [vdy +]]]].
-    move => H /locally_singleton H'.
-    have := CauchyRiemann_Easy H H'.
-    move : H => [/locally_singleton /is_derive_unique + [
-                 /locally_singleton /is_derive_unique + [
-                 /locally_singleton /is_derive_unique + 
-                 /locally_singleton /is_derive_unique +]] ].
-    simpl in *.
-    do 4 move ->.
-    do 2 case.
-    do 2 move ->.
-    move => _.
-    rewrite Ropp_involutive.
-    auto.
-  Qed.
-  
   Lemma Rabs_lt_between_min_max: 
      forall x y z : R, Rmin x y < z < Rmax x y -> Rabs (z - y) < Rabs (x - y).
   Proof.
@@ -523,11 +480,23 @@ Section Holo.
     apply Rmax_r.
   Qed.
   
+  Definition LocallyPartials (u v udx udy vdx vdy: C -> R)  z := 
+    locally z ( fun q =>
+      is_derive (fun t => u (t,q.2)) q.1 (udx q)) /\
+    locally z ( fun q =>
+      is_derive (fun t => u (q.1,t)) q.2 (udy q)) /\
+    locally z ( fun q =>
+      is_derive (fun t => v (t,q.2)) q.1 (vdx q)) /\
+    locally z ( fun q =>
+      is_derive (fun t => v (q.1,t)) q.2 (vdy q))
+    .
+
     
   Open Scope C.
   Theorem CauchyRieman_Hard: forall u v udx udy vdx vdy z,
-    CR_eqs u v udx udy vdx vdy z -> 
-    (CauchyRieman u v udx udy vdx vdy z) -> 
+    LocallyPartials u v udx udy vdx vdy z -> 
+    udx z = vdy z ->
+    (udy z = - vdx z)%R ->
     continuous udx z ->  
     continuous udy z ->  
     continuous vdx z ->  
@@ -535,7 +504,7 @@ Section Holo.
       Holo (fun q => (u q, v q)) (fun q => (vdy q, vdx q)) z
   .
   Proof.
-    move => u v udx udy vdx vdy z CR_diffs CR_eqs.
+    move => u v udx udy vdx vdy z CR_diffs cr1 cr2.
     move => /filterlim_locally c_udx.
     move => /filterlim_locally c_udy.
     move => /filterlim_locally c_vdx.
@@ -561,7 +530,9 @@ Section Holo.
     move: c_vdy => /(_ eps4).
     move => cts.
     do 3 move => {cts} /(filter_and _ _ cts) => cts.
-    move: cts => [del] cts.
+    move: cts => [del] .
+    copy.
+    move => cr_eqs cts.
     
     exists del => a aballz .
     set p := (x in norm (x [-] _ ) ).
@@ -577,7 +548,6 @@ Section Holo.
     set dx := (a.1 - z.1) in p c1_bd c3_bd dx_del *.
     set dy := (a.2 - z.2) in p c2_bd c4_bd dy_del *.
     set dz := a [-] z in p *.
-    rewrite /CauchyRieman in CR_eqs.
     `Begin eq p. { rewrite /p.
   
     | {( ((udx z*dx + udy z*dy + (udx (c3,z.2) - udx z) *dx + 
@@ -599,8 +569,7 @@ Section Holo.
       do 2 apply (Rplus_eq_compat_l).
   
     | {( Cplus (vdy z * dx + (-vdx z * dy), _) (_,_) )}
-      move: CR_eqs => [cr_eq1 cr_eq2];
-      rewrite {1}cr_eq1 {1}cr_eq2.
+      rewrite {1}cr1 {1}cr2.
   
     | {( dz * (vdy z , vdx z)%R + (_,_) )%C}
       f_equal; rewrite /dz /dx /dy;
