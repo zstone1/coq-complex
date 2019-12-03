@@ -527,6 +527,64 @@ Proof.
   auto.
 Qed.
 
+Ltac combine_local := 
+match goal with 
+| H1: @locally ?T _ _, H2: @locally ?T _ _  |- _ => 
+  have:= filter_and _ _ H1 H2;
+  try move /(_ ltac:(apply locally_filter)) {H1 H2}
+
+end.
+
+Lemma path_independence_part_3: forall u v u' v' r g1 g2 a b, 
+  let g:= fun p q => (g1 p q, g2 p q) in
+  let f:= fun z => (u z.1 z.2, v z.1 z.2) in
+  let f':= fun z => (u' z.1 z.2, v' z.1 z.2) in
+  let g_t := fun p q => (Derive (g1 p) q, Derive (g2 p) q) in
+  let g_r := fun p q => (Derive (g1 ^~ q) p, Derive (g2 ^~ q) p) in
+  locally r (fun r0 => forall t, Rmin a b <= t <= Rmax a b -> Holo f f' (r0,t)) ->
+  (forall t, Rmin a b <= t <= Rmax a b -> continuous f' (r,t)) ->
+  locally r (fun r0 => forall t, Rmin a b <= t <= Rmax a b -> SmoothPath g1 g2 r0 t) -> 
+  is_derive (fun r0 => RInt (fun t0 => Re(f (g r0 t0) * g_r r0 t0 ))%C a b) r 
+   (Re(f (g r b) * g_t r b )%C - (Re(f (g r a) * g_t r a )%C))%R.
+Proof.
+  move => u v u' v' r g1 g2 a b g f f' g_t g_r holo cts smooth.
+  combine_local.
+  move => [del H].
+
+  have D: is_derive (fun r0 => RInt (fun t0 => Re(f (g r0 t0) * g_r r0 t0 ))%C a b) r 
+   (RInt (fun t0 => Derive (fun r0 => Re(f (g r0 t0) * g_r r0 t0 )%C) r) a b). {
+   apply is_derive_RInt_param .
+   - exists del => r0 r0ball t0 t0ball. 
+     move:H => /(_ r0 r0ball).
+     case => /(_ t0 t0ball) holo /(_ t0 t0ball) smooth.
+     eapply ex_derive_ext. { 
+       move => t1.
+       set p := ( x in Re x).
+       simplify_as_R2 e p.
+       simpl.
+       reflexivity.
+     }
+     apply: ex_derive_minus;
+     apply: ex_derive_mult.
+     + eapply differentiable_pt_ex_derive. 
+     + case: smooth => /locally_2d_singleton => [[_ [_ +]] _].
+       move /differentiable_pt_ex_derive.
+       tauto.
+     + admit.
+     + case: smooth => _ [+ _].
+       move /locally_2d_singleton => [_ [_ +]].
+       move /differentiable_pt_ex_derive.
+       tauto.
+       
+    -
+     1,3: eexists; 
+     + move : holo => /holo_differentiable_pt_lim_real /differentiable_pt_lim_is_derive.
+       rewrite /f //=.
+
+         
+       
+
+   }
 
   Definition c_circle (t:R):C := (cos t, sin t).
   Definition c_circle' (t:R):C := (-sin t, cos t)%R.
