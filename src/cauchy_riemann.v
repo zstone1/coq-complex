@@ -320,7 +320,6 @@ Section Holo.
   match goal with 
   | J: locally _ _ |- _ => pose proof (filter_and _ _ J H) as H
   end.
-  Ltac ssrautoprop := try tauto; trivial.
   Open Scope R.
   Theorem MVT_along_axis: forall u udx udy z,
     locally z ( fun q =>
