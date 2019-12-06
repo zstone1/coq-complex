@@ -282,6 +282,37 @@ Lemma differentiable_pt_ex_right (f : R -> R -> R) (x y : R) :
   ex_derive [eta f x] y.
 Proof. apply differentiable_pt_ex_derive. Qed.
 
+Lemma continuity_2d_pt_comp: 
+  forall f g h x y,
+  continuity_2d_pt f (g x y) (h x y) -> 
+  continuity_2d_pt g x y -> 
+  continuity_2d_pt h x y -> 
+  continuity_2d_pt (fun x' y' => f (g x' y') (h x' y')) x y.
+Proof.
+  move => f g h x y 
+    /continuity_2d_pt_filterlim Cf
+    /continuity_2d_pt_filterlim Cg 
+    /continuity_2d_pt_filterlim Ch. 
+  apply/ continuity_2d_pt_filterlim. 
+  apply: filterlim_comp_2; eauto.
+  apply: filterlim_filter_le_1 Cf.
+  move => P [del +].
+  rewrite /ball //= /prod_ball //= => H.
+  eapply Filter_prod. 
+  - exists del => x0; instantiate(1 := ball (g x y) del); auto. 
+  - exists del => y0; instantiate(1 := ball (h x y) del); auto.
+  - move => x0 y0 b1 b2. apply H; simpl; tauto.
+Qed.
+
+Lemma continuity_2d_pt_continuous: 
+  forall f x y,
+  continuity_2d_pt f x y <-> 
+  continuous (fun z => f z.1 z.2) (x,y).
+Proof.
+  move => f x y.
+  rewrite continuity_2d_pt_filterlim /continuous //=.
+Qed.
+
 Section DifferentiablePtComp.
   Variables (f g h : R -> R -> R).
   Variables (x y : R).
@@ -610,6 +641,40 @@ Ltac diff_help := timeout 1
      move:H => /differentiable_pt_ex_derive; tauto
   end.
 
+Lemma inside_internal: forall a b t' t, 
+  Rabs(t' -t) < Rmin (Rabs(t -a)) (Rabs(t-b)) -> 
+  Rmin a b < t < Rmax a b -> 
+  Rmin a b < t' < Rmax a b.
+Proof.
+  move => a b . 
+  wlog: a b / (a < b). {
+    move => H t' t t'bd tbd.
+    destruct (Rle_lt_dec a b).
+    inversion r0.
+    - apply: H; eauto.
+    - subst. 
+      rewrite Rmin_left in tbd; auto.
+      rewrite Rmax_left in tbd; auto.
+      lra.
+    - rewrite Rmin_comm Rmax_comm.
+      rewrite Rmin_comm in t'bd.
+      rewrite Rmin_comm Rmax_comm in tbd. apply: H; eauto.
+  }
+  move => R t' t t'bd tbd.
+  split.
+  + rewrite Rmin_left in tbd *; last by lra.
+    eapply (Rlt_le_trans) in t'bd; last by apply Rmin_l.
+    rewrite [x in _ < x]Rabs_pos_eq in t'bd; last by lra.
+    move : t'bd => /Rabs_lt_between => ?.
+    lra.
+  + rewrite Rmax_right in tbd *;last by lra.
+    eapply (Rlt_le_trans) in t'bd; last by apply Rmin_r.
+    rewrite [x in _ < x]Rabs_minus_sym 
+            [x in _ < x]Rabs_pos_eq in t'bd; last by lra.
+    move : t'bd => /Rabs_lt_between => ?.
+    lra.
+Qed.
+
 Lemma path_independence_part_3: forall u v u' v' r g1 g2 a b, 
   let g:= fun p q => (g1 p q, g2 p q) in
   let f:= fun z => (u z.1 z.2, v z.1 z.2) in
@@ -675,9 +740,8 @@ Proof.
       exists del2pos => r' t' 
         /(Rlt_le_trans _ _ del) /(_ (Rmin_l _ _)) r'bd
         /(Rlt_le_trans _ _ _) /(_ (Rmin_r _ _)) t'bd.
-      have {}t'bd: (Rmin a b < t' < Rmax a b). {
-        admit.
-      }
+      have {}t'bd: (Rmin a b < t' < Rmax a b) 
+        by apply: (inside_internal (t:=t)).
       move: H => /(_ r' r'bd).
       copy.
       move => [/(_ t' t'bd) + _].
@@ -697,23 +761,23 @@ Proof.
     move: H => /(_ r (ball_center _ _)).
     foo t tbd.
     move:c => [? [?[??]]].
-    move: cts => /(_ t tbd) cts.
-    rewrite /f' in cts.
+    move: cts => /(_ t tbd) .
+    copy.
+    rewrite /f'.
+    move => /(continuous_comp _ fst) //= Cu'.
+    move => /(continuous_comp _ snd) //= Cv'.
     repeat (
     try apply continuity_2d_pt_minus;
     try apply continuity_2d_pt_plus;
     try apply continuity_2d_pt_mult;
     try apply continuity_2d_pt_opp;
     simpl in *; auto).
+    1,3,7,9: apply continuity_2d_pt_comp.
     all: try now (
       apply: differentiable_continuity_pt; repeat diff_help; auto;
       apply: (differentiable_pt_comp); try diff_help; eauto).
-    all: apply continuity_2d_pt_filterlim; apply: filterlim_comp_2; eauto.
-    all: move: cts => /(_ t tbd).
-    rewrite /f'.
-    simpl in cts.
-    admit.
-    admit.
+    all: apply/continuity_2d_pt_continuous;
+      first [apply Cu' | apply Cv']; auto_continuous_aux.
   - apply: filter_imp diff_r => r0 D. 
     apply: ex_RInt_continuous => ??.
     apply: ex_derive_continuous .
@@ -724,17 +788,70 @@ Proof.
     rewrite -(@path_independence_part_2_real u v u' v').
     reflexivity.
     all: move: H => [del /(_ r (ball_center _ _))].
-    - case => [[_ +] _]. apply. split; left; apply xbd.
-    - case => [[+ _] _]. apply. split; left; apply xbd.
+    - case => _ +; apply; apply inside; split; left; apply xbd.
+    - case => + _; apply; apply inside; split; left; apply xbd.
   }
-  combine_local => ?.
-  combine_local.
-
   rewrite RInt_Derive in D. 
   - apply: D.
-  - move:H => [? /(_ r (ball_center _ _)) [_ [+ _]]]. auto. 
-  - simpl. admit.
-Admitted.
+  - move:diff_t. 
+    move => [? /(_ r (ball_center _ _))]. auto. 
+  - simpl. 
+    move :H => [del H] t /inside  tbd.
+    eapply continuous_ext_loc. {
+    pose del2 := (Rmin del (Rmin (Rabs(t-a)) (Rabs(t-b)))).
+    have del2ge: 0 < del2 by
+      apply Rmin_glb_lt; first (by apply: cond_pos);
+      apply Rmin_glb_lt; apply Rabs_pos_lt;
+      eapply Rminus_eq_contra; move => ?; subst;
+      destruct (Rle_dec a b);
+      try (rewrite Rmin_left in tbd; auto; lra);
+      try (rewrite Rmax_left in tbd; auto; lra);
+      try (rewrite Rmax_right in tbd; auto; lra);
+      try (rewrite Rmin_right in tbd; auto; lra).
+    pose del2pos := mkposreal del2 del2ge. 
+    exists del2pos => t' t'ball.
+    rewrite /ball /= /AbsRing_ball /= /ball /abs /= /minus /= 
+      /plus /= /opp /= -/(Rminus _ _) in t'ball.
+    move: t'ball => /(Rlt_le_trans _ _ _) /(_ (Rmin_r _ _)) t'bd.
+    have {}t'bd: (Rmin a b < t' < Rmax a b) 
+        by apply: (inside_internal (t:=t)).
+    move: H => /(_ r (ball_center _ _)).
+    copy.
+    simpl.
+    move => [/(_ t' t'bd) + _].
+    copy => /holo_differentiable_pt_lim_real 
+            /differentiable_pt_lim_unique [Du'1 Du'2]
+              /holo_differentiable_pt_lim_imaginary
+              /differentiable_pt_lim_unique [Dv'1 Dv'2].
+    move => H.
+    simpl in *.
+    rewrite Derive_minus ?Derive_mult ?Derive_plus /=.
+    rewrite (@Derive_comp_2_right u g1 g2).
+    rewrite (@Derive_comp_2_right v g1 g2).
+    rewrite Du'1 Du'2 Dv'1 Dv'2.
+    reflexivity.
+    all: move: H; foo t' t'bd. 
+    }
+    move: H => /(_ r (ball_center _ _)).
+    foo t tbd.
+    move:c => [? [?[??]]].
+    move: cts => /(_ t tbd) .
+    copy.
+    rewrite /f'.
+    move => /(continuous_comp _ fst) //= Cu'.
+    move => /(continuous_comp _ snd) //= Cv'.
+    repeat auto_continuous_aux; simpl.
+    3: apply: continuous_opp.
+
+    1,3,6,8,10,13: apply continuous_comp_2.
+    all: try now (apply: ex_derive_continuous; repeat diff_help; auto).
+    all: try now (first [apply Cu' | apply Cv']; auto_continuous_aux).
+    1,2: apply/continuity_2d_pt_continuous; 
+         apply differentiable_continuity_pt; diff_help.
+
+     //=.
+    apply: continuity_2d_pt_comp.
+Qed.
 
   Definition c_circle (t:R):C := (cos t, sin t).
   Definition c_circle' (t:R):C := (-sin t, cos t)%R.
