@@ -313,6 +313,28 @@ Proof.
   rewrite continuity_2d_pt_filterlim /continuous //=.
 Qed.
 
+Lemma continuity_2d_pt_continuous_right: 
+  forall f x y,
+  continuity_2d_pt f x y -> 
+  continuous (fun z => f x z) y.
+Proof.
+  move => f x y.
+  rewrite continuity_2d_pt_continuous //=. 
+  move => /(continuous_comp (fun z => (x, z.2))).
+  move => /(_ ltac:(repeat auto_continuous_aux)) //=.
+  rewrite /continuous /filtermap //= /filterlim /filtermap /filter_le => H.
+  move => P lP.
+  move:H => /(_ P lP) [eps H].
+  exists eps => y' xball. 
+  apply (H (x,y')).
+  move: xball. unfold_alg.
+  rewrite /AbsRing_ball //= -/(Rminus _ _); split; auto. 
+  unfold_alg.
+  have ->: (x+-x=0) by lra.
+  rewrite Rabs_R0.
+  apply cond_pos.
+Qed.
+
 Section DifferentiablePtComp.
   Variables (f g h : R -> R -> R).
   Variables (x y : R).
@@ -848,9 +870,16 @@ Proof.
     all: try now (first [apply Cu' | apply Cv']; auto_continuous_aux).
     1,2: apply/continuity_2d_pt_continuous; 
          apply differentiable_continuity_pt; diff_help.
-
-     //=.
-    apply: continuity_2d_pt_comp.
+    2: repeat match goal with 
+    | H: continuity_2d_pt _ _ _ |- _ => move: H
+    end;
+    move => _ _ _ ;
+    move /continuity_2d_pt_continuous_right; auto.
+    repeat match goal with 
+    | H: continuity_2d_pt _ _ _ |- _ => move: H
+    end;
+    move => _ + _ _ ;
+    move /continuity_2d_pt_continuous_right; auto.
 Qed.
 
   Definition c_circle (t:R):C := (cos t, sin t).
