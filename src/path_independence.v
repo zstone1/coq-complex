@@ -313,6 +313,30 @@ Section DifferentiablePtComp.
   Proof.
     apply differentiable_pt_comp_ex_derive.
   Qed.
+
+  Lemma Derive_comp_2_left: 
+    Derive (fun z => f (g z y) (h z y)) x = 
+    Derive (f ^~ (h x y)) (g x y) * Derive (g ^~ y) x + 
+    Derive [eta (f (g x y))] (h x y) * Derive (h ^~ y) x.
+  Proof.
+    move: df => /differentiable_pt_unique => Df.
+    move: dg => /differentiable_pt_unique => Dg.
+    move: dh => /differentiable_pt_unique => Dh.
+    have := (differentiable_pt_lim_comp f g h x y _ _ _ _ _ _ Df Dg Dh). 
+    move=>  /differentiable_pt_lim_unique; tauto.
+  Qed.
+  Lemma Derive_comp_2_right: 
+    Derive (fun z => f (g x z) (h x z)) y = 
+    Derive (f ^~ (h x y)) (g x y) * Derive (g x) y + 
+    Derive [eta (f (g x y))] (h x y) * Derive (h x) y.
+  Proof.
+    move: df => /differentiable_pt_unique => Df.
+    move: dg => /differentiable_pt_unique => Dg.
+    move: dh => /differentiable_pt_unique => Dh.
+    have := (differentiable_pt_lim_comp f g h x y _ _ _ _ _ _ Df Dg Dh). 
+    move=>  /differentiable_pt_lim_unique; tauto.
+  Qed.
+
 End DifferentiablePtComp.
 
 Lemma holo_differentiable_pt_lim_imaginary: forall (f:C -> C) x y g,
@@ -594,7 +618,7 @@ Lemma path_independence_part_3: forall u v u' v' r g1 g2 a b,
   let g_r := fun p q => (Derive (g1 ^~ q) p, Derive (g2 ^~ q) p) in
   a <> b ->
   locally r (fun r0 => forall t, Rmin a b < t < Rmax a b -> Holo f f' (g r0 t)) ->
-  (forall t, Rmin a b <= t <= Rmax a b -> continuous f' (g r t)) ->
+  (forall t, Rmin a b < t < Rmax a b -> continuous f' (g r t)) ->
   locally r (fun r0 => forall t, Rmin a b < t < Rmax a b -> SmoothPath g1 g2 r0 t) -> 
   forall a' b', 
     (*Wierd issues with coquelicot with differentiability at the endpoints.*)
@@ -637,28 +661,57 @@ Proof.
   - apply: filter_imp H => r0 + t /inside tbd; foo t tbd.
   - move :H => [del H] t /inside  tbd.
     eapply continuity_2d_pt_ext_loc. {
-      pose del2 := mkposreal (Rmin del (Rabs(b-a)))
-        (ltac:(apply Rmin_pos; [apply: cond_pos del|apply Rabs_pos_lt; lra])).
-      exists del2 => r' t' 
+      pose del2 := (Rmin del (Rmin (Rabs(t-a)) (Rabs(t-b)))).
+      have del2ge: 0 < del2 by
+        apply Rmin_glb_lt; first (by apply: cond_pos);
+        apply Rmin_glb_lt; apply Rabs_pos_lt;
+        eapply Rminus_eq_contra; move => ?; subst;
+        destruct (Rle_dec a b);
+        try (rewrite Rmin_left in tbd; auto; lra);
+        try (rewrite Rmax_left in tbd; auto; lra);
+        try (rewrite Rmax_right in tbd; auto; lra);
+        try (rewrite Rmin_right in tbd; auto; lra).
+      pose del2pos := mkposreal del2 del2ge. 
+      exists del2pos => r' t' 
         /(Rlt_le_trans _ _ del) /(_ (Rmin_l _ _)) r'bd
-        /(Rlt_le_trans _ _ (Rabs(b-a))) /(_ (Rmin_r _ _)) t'bd.
+        /(Rlt_le_trans _ _ _) /(_ (Rmin_r _ _)) t'bd.
       have {}t'bd: (Rmin a b < t' < Rmax a b). {
         admit.
       }
+      move: H => /(_ r' r'bd).
+      copy.
+      move => [/(_ t' t'bd) + _].
+      copy => /holo_differentiable_pt_lim_real 
+              /differentiable_pt_lim_unique [Du'1 Du'2]
+              /holo_differentiable_pt_lim_imaginary
+              /differentiable_pt_lim_unique [Dv'1 Dv'2].
+      move => H.
+      simpl in *.
       rewrite Derive_minus ?Derive_mult ?Derive_plus /=.
+      rewrite (@Derive_comp_2_left u g1 g2).
+      rewrite (@Derive_comp_2_left v g1 g2).
+      rewrite Du'1 Du'2 Dv'1 Dv'2.
       reflexivity.
-      all: move: H => /(_ r' r'bd); foo t' t'bd. 
+      all: move: H; foo t' t'bd. 
     }
     move: H => /(_ r (ball_center _ _)).
     foo t tbd.
-    move: c=> [? [?[??]]].
-    apply continuity_2d_pt_minus;
-    apply continuity_2d_pt_plus;
-    apply continuity_2d_pt_mult;
-    simpl in *; auto.
-    3,6: apply: differentiable_continuity_pt; repeat diff_help; auto;
-         apply: (differentiable_pt_comp); try diff_help; eauto.
-    2,4: apply: differentiable_continuity_pt; repeat diff_help; auto.
+    move:c => [? [?[??]]].
+    move: cts => /(_ t tbd) cts.
+    rewrite /f' in cts.
+    repeat (
+    try apply continuity_2d_pt_minus;
+    try apply continuity_2d_pt_plus;
+    try apply continuity_2d_pt_mult;
+    try apply continuity_2d_pt_opp;
+    simpl in *; auto).
+    all: try now (
+      apply: differentiable_continuity_pt; repeat diff_help; auto;
+      apply: (differentiable_pt_comp); try diff_help; eauto).
+    all: apply continuity_2d_pt_filterlim; apply: filterlim_comp_2; eauto.
+    all: move: cts => /(_ t tbd).
+    rewrite /f'.
+    simpl in cts.
     admit.
     admit.
   - apply: filter_imp diff_r => r0 D. 
