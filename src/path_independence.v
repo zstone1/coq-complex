@@ -512,61 +512,26 @@ Proof.
   rewrite /p  //= .
   rewrite /p  //= .
   symmetry.
-  eapply (@path_independence_part_1 u v _ _ _ _ g1 g2 _ _ _ _ r t).
-  9, 10:  apply Schwarz.
-  - apply: differentiable_pt_unique. 
-    move: holo => / holo_differentiable_pt_lim_real holo.
-    simpl in *.
-    eexists. eexists.
-    eapply holo.
-  - apply differentiable_pt_unique. 
-    move: holo => /holo_differentiable_pt_lim_imaginary holo.
-    simpl in *.
-    eexists. eexists.
-    eapply holo.
-  - apply locally_2d_singleton in g1_smooth.
-    apply differentiable_pt_unique; auto.
-    by case: g1_smooth => H _.
-  - apply locally_2d_singleton in g2_smooth.
-    apply differentiable_pt_unique; auto.
-    by case: g2_smooth => H _.
-  - apply locally_2d_singleton in g1_smooth.
-    move: g1_smooth => [_ [H _]].
-    apply H.
-  - apply locally_2d_singleton in g1_smooth.
-    move: g1_smooth => [_ [_ H]].
-    apply H.
-  - apply locally_2d_singleton in g2_smooth.
-    move: g2_smooth => [_ [H _]].
-    apply H.
-  - apply locally_2d_singleton in g2_smooth.
-    move: g2_smooth => [_ [_ H]].
-    apply H.
-  - move: g1_smooth => [eps H1].
-    exists eps => p q pbd qbd.
-    move: H1 => /(_ p q pbd qbd). 
-    case => /differentiable_pt_ex_derive [H1 H2]. 
-    case => /differentiable_pt_ex_derive [H3 H4]
-            /differentiable_pt_ex_derive [H5 H6].
-    repeat split; auto.
-  - auto.
-  - auto.
-  - move: g2_smooth => [eps H1].
-    exists eps => p q pbd qbd.
-    move: H1 => /(_ p q pbd qbd). 
-    case => /differentiable_pt_ex_derive [H1 H2]. 
-    case => /differentiable_pt_ex_derive [H3 H4]
-            /differentiable_pt_ex_derive [H5 H6].
-    repeat split; auto.
-  - auto.
-  - auto.
-  - rewrite /f in holo. 
-    rewrite -[LHS]Ropp_involutive.
-    apply Ropp_eq_compat.
-    symmetry.
-    move: holo => /CauchyRiemann_Easy.
-    simpl in *.
-    tauto.
+  move: g1_smooth; copy => /locally_2d_singleton [? [??]] g1_smooth.
+  move: g2_smooth; copy => /locally_2d_singleton [? [??]] g2_smooth.
+  move: holo; copy => /holo_differentiable_pt_lim_real ?
+                      /holo_differentiable_pt_lim_imaginary ?.
+  simpl in *.
+  
+  eapply (@path_independence_part_1 u v _ _ _ _ g1 g2 _ _ _ _ r t);
+    try apply Schwarz;
+    try eauto;
+    try apply: differentiable_pt_unique; eauto.
+
+  3: lra.
+  1: move: g1_smooth. 
+  2: move: g2_smooth.
+  all: move => [eps H1] ;
+    exists eps => p q pbd qbd;
+    move: H1 => /(_ p q pbd qbd);
+    case => /differentiable_pt_ex_derive [H1 H2];
+    by case => /differentiable_pt_ex_derive [H3 H4]
+           /differentiable_pt_ex_derive [H5 H6].
 Qed.
 
 Lemma Holo_mult: forall f g z k,
@@ -697,57 +662,154 @@ Proof.
     lra.
 Qed.
 
-Lemma path_independence_part_3: forall u v u' v' r g1 g2 a b, 
-  let g:= fun p q => (g1 p q, g2 p q) in
-  let f:= fun z => (u z.1 z.2, v z.1 z.2) in
-  let f':= fun z => (u' z.1 z.2, v' z.1 z.2) in
-  let g_t := fun p q => (Derive (g1 p) q, Derive (g2 p) q) in
-  let g_r := fun p q => (Derive (g1 ^~ q) p, Derive (g2 ^~ q) p) in
-  a <> b ->
-  locally r (fun r0 => forall t, Rmin a b < t < Rmax a b -> Holo f f' (g r0 t)) ->
-  (forall t, Rmin a b < t < Rmax a b -> continuous f' (g r t)) ->
-  locally r (fun r0 => forall t, Rmin a b < t < Rmax a b -> SmoothPath g1 g2 r0 t) -> 
-  forall a' b', 
-    (*Wierd issues with coquelicot with differentiability at the endpoints.*)
-    (Rmin a b < a' < Rmax a b) ->
-    (Rmin a b < b' < Rmax a b) ->
-    is_derive (fun r0 => RInt (fun t0 => Re(f (g r0 t0) * g_t r0 t0 ))%C a' b') r 
-   (Re(f (g r b') * g_r r b' )%C - (Re(f (g r a') * g_r r a' )%C))%R.
-Proof.
-  move => u v u' v' r g1 g2 a b g f f' g_t g_r altb holo cts smooth a' b' a'bd b'bd.
-  combine_local.
-  move => H.
-  have inside: forall t, Rmin a' b' <= t <= Rmax a' b' -> Rmin a b < t < Rmax a b. {
+Section DeriveHomotopy .
+  Variables (u v u' v': R -> R -> R) (a b :R).
+  Variables (g1 g2 : R -> R -> R ).
+
+  Definition g:= fun p q => (g1 p q, g2 p q).
+  Definition f:= fun z => (u z.1 z.2, v z.1 z.2).
+  Definition f':= fun z => (u' z.1 z.2, v' z.1 z.2).
+  Definition g_t := fun p q => (Derive (g1 p) q, Derive (g2 p) q).
+  Definition g_r := fun p q => (Derive (g1 ^~ q) p, Derive (g2 ^~ q) p).
+  Section DeriveInterior.
+  Variables (r a' b': R).
+  Hypothesis holo: 
+    locally r (fun r0 => forall t, Rmin a b < t < Rmax a b -> Holo f f' (g r0 t)).
+  Hypothesis cts: 
+    (forall t, Rmin a b < t < Rmax a b -> continuous f' (g r t)) .
+  Hypothesis smooth:
+  locally r (fun r0 => forall t, Rmin a b < t < Rmax a b -> SmoothPath g1 g2 r0 t) .
+  Hypothesis a'bd: (Rmin a b < a' < Rmax a b).
+  Hypothesis b'bd: (Rmin a b < b' < Rmax a b).
+
+  Lemma locally_nice: locally r (fun r0 => forall t, Rmin a b < t < Rmax a b -> 
+    Holo f f' (g r0 t)/\ SmoothPath g1 g2 r0 t).
+  Proof.
+    combine_local => /(_ ltac:(apply locally_filter)) H. 
+    apply: filter_imp H => r0 [H1 H2]; split;
+    [apply H1 | apply H2]; auto.
+  Qed.
+  Lemma inside: forall t, Rmin a' b' <= t <= Rmax a' b' -> Rmin a b < t < Rmax a b.
+  Proof.
     split.
     - apply: (@Rlt_le_trans _ (Rmin a' b') t). 
       apply: Rmin_glb_lt; [apply a'bd | apply b'bd].
-      apply H0.
+      apply H.
     - apply: (@Rle_lt_trans _ (Rmax a' b') _). 
-      apply H0.
+      apply H.
       apply: Rmax_lub_lt; [apply a'bd | apply b'bd].
-  }
+  Qed.
+
+  Lemma inside': forall t, Rmin a b < t < Rmax a b -> 
+    0 < Rmin (Rabs(t-a)) (Rabs(t-b)).
+  Proof.
+    move => t tbd.
+      apply Rmin_glb_lt; apply Rabs_pos_lt;
+      eapply Rminus_eq_contra; move => ?; subst;
+      destruct (Rle_dec a b);
+      try (rewrite Rmin_left in tbd; auto; lra);
+      try (rewrite Rmax_left in tbd; auto; lra);
+      try (rewrite Rmax_right in tbd; auto; lra);
+      try (rewrite Rmin_right in tbd; auto; lra).
+  Qed.
+
   Local Ltac foo x y := 
     let smooth := fresh in 
-      move => [/(_ x y) + /(_ x y) smooth];
+      move => /(_ x y)[+ smooth];
       copy => /holo_differentiable_pt_lim_real ? 
               /holo_differentiable_pt_lim_imaginary ?;
       case: smooth => /locally_2d_singleton [? [H Q]] [/locally_2d_singleton [?[??]] c];
       simpl in *;
       repeat diff_help; auto.
-  have diff_t: (locally r( fun r0 => forall t, Rmin a' b' <= t <= Rmax a' b' -> 
-    ex_derive (fun t0 => Re(f (g r0 t0) * g_r r0 t0)) t)). {
-      apply: filter_imp H => r0 + t /inside tbd; foo t tbd.
-  }
-  have diff_r: (locally r( fun r0 => forall t, Rmin a' b' <= t <= Rmax a' b' -> 
-    ex_derive (fun t0 => Re(f (g r0 t0) * g_t r0 t0)) t)). {
-      apply: filter_imp H => r0 + t /inside tbd; foo t tbd.
-  }
-  have D: is_derive (fun r0 => RInt (fun t0 => Re(f (g r0 t0) * g_t r0 t0 ))%C a' b') r 
-   (RInt (fun t0 => Derive (fun r0 => Re(f (g r0 t0) * g_t r0 t0 )%C) r) a' b'). {
-   apply is_derive_RInt_param .
-  - apply: filter_imp H => r0 + t /inside tbd; foo t tbd.
-  - move :H => [del H] t /inside  tbd.
+
+  Lemma diff_t: (locally r( fun r0 => forall t, Rmin a' b' <= t <= Rmax a' b' -> 
+    ex_derive (fun t0 => Re(f (g r0 t0) * g_r r0 t0)) t)).
+  Proof.
+      apply: filter_imp locally_nice => r0 + t /inside tbd. foo t tbd.
+  Qed.
+  Lemma diff_r: (locally r( fun r0 => forall t, Rmin a' b' <= t <= Rmax a' b' -> 
+    ex_derive (fun t0 => Re(f (g r0 t0) * g_t r0 t0)) t)).
+  Proof.
+      apply: filter_imp locally_nice => r0 + t /inside tbd. foo t tbd.
+  Qed.
+  Ltac auto_2d_continuous :=
+    repeat (
+    try apply continuity_2d_pt_minus;
+    try apply continuity_2d_pt_plus;
+    try apply continuity_2d_pt_mult;
+    try apply continuity_2d_pt_opp;
+    simpl in *; auto).
+  Lemma D: is_derive (fun r0 => RInt (fun t0 => Re(f (g r0 t0) * g_t r0 t0 ))%C a' b') r 
+   (RInt (fun t0 => Derive (fun r0 => Re(f (g r0 t0) * g_t r0 t0 )%C) r) a' b'). 
+  Proof.
+     apply is_derive_RInt_param .
+    3: apply: filter_imp diff_r => r0 D;
+       apply: ex_RInt_continuous => ??;
+       apply: ex_derive_continuous ;
+       by apply: D.
+    1: apply: filter_imp locally_nice => r0 + t /inside tbd; foo t tbd.
+  
+    move :locally_nice => [del H] t /inside  tbd.
     eapply continuity_2d_pt_ext_loc. {
+      pose del2 := (Rmin del (Rmin (Rabs(t-a)) (Rabs(t-b)))).
+      have del2ge: 0 < del2 by
+        apply Rmin_glb_lt; [by apply: cond_pos| by apply: inside'].
+      pose del2pos := mkposreal del2 del2ge. 
+      exists del2pos => r' t' 
+        /(Rlt_le_trans _ _ del) /(_ (Rmin_l _ _)) r'bd
+        /(Rlt_le_trans _ _ _) /(_ (Rmin_r _ _)) t'bd.
+      have {}t'bd: (Rmin a b < t' < Rmax a b) 
+        by apply: (inside_internal (t:=t)).
+      move: H; copy => H.
+      move => /(_ r' r'bd t' t'bd)  [+ _].
+      copy => /holo_differentiable_pt_lim_real
+              /differentiable_pt_lim_unique [Du'1 Du'2]
+              /holo_differentiable_pt_lim_imaginary
+              /differentiable_pt_lim_unique [Dv'1 Dv'2].
+      simpl in *.
+      rewrite Derive_minus ?Derive_mult ?Derive_plus /=.
+      rewrite (@Derive_comp_2_left u g1 g2).
+      rewrite (@Derive_comp_2_left v g1 g2).
+      rewrite Du'1 Du'2 Dv'1 Dv'2.
+      reflexivity.
+      all: move: H => /(_ r' r'bd); foo t' t'bd. 
+    }
+    move: H => /(_ r (ball_center _ _)).
+    foo t tbd.
+    move:c => [? [?[??]]].
+    move: cts => /(_ t tbd) .
+    copy.
+    rewrite /f'.
+    move => /(continuous_comp _ fst) //= Cu'.
+    move => /(continuous_comp _ snd) //= Cv'.
+    auto_2d_continuous.
+    1,3,7,9: apply continuity_2d_pt_comp.
+    all: try now (
+      apply: differentiable_continuity_pt; repeat diff_help; auto;
+      apply: (differentiable_pt_comp); try diff_help; eauto).
+    
+    all: apply/continuity_2d_pt_continuous;
+      first [apply Cu' | apply Cv']; auto_continuous_aux.
+  Qed.
+  Lemma path_independence_part_3_real:
+      is_derive (fun r0 => RInt (fun t0 => Re(f (g r0 t0) * g_t r0 t0 ))%C a' b') r 
+     (Re(f (g r b') * g_r r b' - f (g r a') * g_r r a' )%C).
+  Proof.
+    have D := D.
+    erewrite RInt_ext in D. 
+    2:{ move => x xbd.
+      rewrite -(@path_independence_part_2_real u v u' v').
+      reflexivity.
+      all: move: locally_nice => [del /(_ r (ball_center _ _) x)];
+      move => H; apply H; apply: inside; split; left; apply xbd.
+    }
+    rewrite RInt_Derive in D. 
+    - apply: D.
+    - move:diff_t. 
+      move => [? /(_ r (ball_center _ _))]. auto. 
+    - simpl. 
+      move : locally_nice => [del H] t /inside  tbd.
+      eapply continuous_ext_loc. {
       pose del2 := (Rmin del (Rmin (Rabs(t-a)) (Rabs(t-b)))).
       have del2ge: 0 < del2 by
         apply Rmin_glb_lt; first (by apply: cond_pos);
@@ -759,128 +821,114 @@ Proof.
         try (rewrite Rmax_right in tbd; auto; lra);
         try (rewrite Rmin_right in tbd; auto; lra).
       pose del2pos := mkposreal del2 del2ge. 
-      exists del2pos => r' t' 
-        /(Rlt_le_trans _ _ del) /(_ (Rmin_l _ _)) r'bd
-        /(Rlt_le_trans _ _ _) /(_ (Rmin_r _ _)) t'bd.
+      exists del2pos => t' t'ball.
+      rewrite /ball /= /AbsRing_ball /= /ball /abs /= /minus /= 
+        /plus /= /opp /= -/(Rminus _ _) in t'ball.
+      move: t'ball => /(Rlt_le_trans _ _ _) /(_ (Rmin_r _ _)) t'bd.
       have {}t'bd: (Rmin a b < t' < Rmax a b) 
-        by apply: (inside_internal (t:=t)).
-      move: H => /(_ r' r'bd).
-      copy.
-      move => [/(_ t' t'bd) + _].
+          by apply: (inside_internal (t:=t)).
+      move: H => /(_ r (ball_center _ _)); copy => H.
+      move => /(_ t' t'bd) [+ _].
       copy => /holo_differentiable_pt_lim_real 
               /differentiable_pt_lim_unique [Du'1 Du'2]
-              /holo_differentiable_pt_lim_imaginary
-              /differentiable_pt_lim_unique [Dv'1 Dv'2].
-      move => H.
+                /holo_differentiable_pt_lim_imaginary
+                /differentiable_pt_lim_unique [Dv'1 Dv'2].
       simpl in *.
       rewrite Derive_minus ?Derive_mult ?Derive_plus /=.
-      rewrite (@Derive_comp_2_left u g1 g2).
-      rewrite (@Derive_comp_2_left v g1 g2).
+      rewrite (@Derive_comp_2_right u g1 g2).
+      rewrite (@Derive_comp_2_right v g1 g2).
       rewrite Du'1 Du'2 Dv'1 Dv'2.
       reflexivity.
       all: move: H; foo t' t'bd. 
-    }
-    move: H => /(_ r (ball_center _ _)).
-    foo t tbd.
-    move:c => [? [?[??]]].
-    move: cts => /(_ t tbd) .
-    copy.
-    rewrite /f'.
-    move => /(continuous_comp _ fst) //= Cu'.
-    move => /(continuous_comp _ snd) //= Cv'.
-    repeat (
-    try apply continuity_2d_pt_minus;
-    try apply continuity_2d_pt_plus;
-    try apply continuity_2d_pt_mult;
-    try apply continuity_2d_pt_opp;
-    simpl in *; auto).
-    1,3,7,9: apply continuity_2d_pt_comp.
-    all: try now (
-      apply: differentiable_continuity_pt; repeat diff_help; auto;
-      apply: (differentiable_pt_comp); try diff_help; eauto).
-    all: apply/continuity_2d_pt_continuous;
-      first [apply Cu' | apply Cv']; auto_continuous_aux.
-  - apply: filter_imp diff_r => r0 D. 
-    apply: ex_RInt_continuous => ??.
-    apply: ex_derive_continuous .
-    by apply: D.
-  }
-  erewrite RInt_ext in D. 
-  2:{ move => x xbd.
-    rewrite -(@path_independence_part_2_real u v u' v').
-    reflexivity.
-    all: move: H => [del /(_ r (ball_center _ _))].
-    - case => _ +; apply; apply inside; split; left; apply xbd.
-    - case => + _; apply; apply inside; split; left; apply xbd.
-  }
-  rewrite RInt_Derive in D. 
-  - apply: D.
-  - move:diff_t. 
-    move => [? /(_ r (ball_center _ _))]. auto. 
-  - simpl. 
-    move :H => [del H] t /inside  tbd.
-    eapply continuous_ext_loc. {
-    pose del2 := (Rmin del (Rmin (Rabs(t-a)) (Rabs(t-b)))).
-    have del2ge: 0 < del2 by
-      apply Rmin_glb_lt; first (by apply: cond_pos);
-      apply Rmin_glb_lt; apply Rabs_pos_lt;
-      eapply Rminus_eq_contra; move => ?; subst;
-      destruct (Rle_dec a b);
-      try (rewrite Rmin_left in tbd; auto; lra);
-      try (rewrite Rmax_left in tbd; auto; lra);
-      try (rewrite Rmax_right in tbd; auto; lra);
-      try (rewrite Rmin_right in tbd; auto; lra).
-    pose del2pos := mkposreal del2 del2ge. 
-    exists del2pos => t' t'ball.
-    rewrite /ball /= /AbsRing_ball /= /ball /abs /= /minus /= 
-      /plus /= /opp /= -/(Rminus _ _) in t'ball.
-    move: t'ball => /(Rlt_le_trans _ _ _) /(_ (Rmin_r _ _)) t'bd.
-    have {}t'bd: (Rmin a b < t' < Rmax a b) 
-        by apply: (inside_internal (t:=t)).
-    move: H => /(_ r (ball_center _ _)).
-    copy.
-    simpl.
-    move => [/(_ t' t'bd) + _].
-    copy => /holo_differentiable_pt_lim_real 
-            /differentiable_pt_lim_unique [Du'1 Du'2]
-              /holo_differentiable_pt_lim_imaginary
-              /differentiable_pt_lim_unique [Dv'1 Dv'2].
-    move => H.
-    simpl in *.
-    rewrite Derive_minus ?Derive_mult ?Derive_plus /=.
-    rewrite (@Derive_comp_2_right u g1 g2).
-    rewrite (@Derive_comp_2_right v g1 g2).
-    rewrite Du'1 Du'2 Dv'1 Dv'2.
-    reflexivity.
-    all: move: H; foo t' t'bd. 
-    }
-    move: H => /(_ r (ball_center _ _)).
-    foo t tbd.
-    move:c => [? [?[??]]].
-    move: cts => /(_ t tbd) .
-    copy.
-    rewrite /f'.
-    move => /(continuous_comp _ fst) //= Cu'.
-    move => /(continuous_comp _ snd) //= Cv'.
-    repeat auto_continuous_aux; simpl.
-    3: apply: continuous_opp.
+      }
+      move: H => /(_ r (ball_center _ _)).
+      foo t tbd.
+      move:c => [? [?[??]]].
+      move: cts => /(_ t tbd) .
+      copy.
+      rewrite /f'.
+      move => /(continuous_comp _ fst) //= Cu'.
+      move => /(continuous_comp _ snd) //= Cv'.
+      repeat auto_continuous_aux; simpl.
+      3: apply: continuous_opp.
+  
+      1,3,6,8,10,13: apply continuous_comp_2.
+      all: try now (apply: ex_derive_continuous; repeat diff_help; auto).
+      all: try now (first [apply Cu' | apply Cv']; auto_continuous_aux).
+      1,2: apply/continuity_2d_pt_continuous; 
+           apply differentiable_continuity_pt; diff_help.
+      2: repeat match goal with 
+      | H: continuity_2d_pt _ _ _ |- _ => move: H
+      end;
+      move => _ _ _ ;
+      move /continuity_2d_pt_continuous_right; auto.
+      repeat match goal with 
+      | H: continuity_2d_pt _ _ _ |- _ => move: H
+      end;
+      move => _ + _ _ ;
+      move /continuity_2d_pt_continuous_right; auto.
+  Qed.
 
-    1,3,6,8,10,13: apply continuous_comp_2.
-    all: try now (apply: ex_derive_continuous; repeat diff_help; auto).
-    all: try now (first [apply Cu' | apply Cv']; auto_continuous_aux).
-    1,2: apply/continuity_2d_pt_continuous; 
-         apply differentiable_continuity_pt; diff_help.
-    2: repeat match goal with 
-    | H: continuity_2d_pt _ _ _ |- _ => move: H
-    end;
-    move => _ _ _ ;
-    move /continuity_2d_pt_continuous_right; auto.
-    repeat match goal with 
-    | H: continuity_2d_pt _ _ _ |- _ => move: H
-    end;
-    move => _ + _ _ ;
-    move /continuity_2d_pt_continuous_right; auto.
-Qed.
+  End DeriveInterior.
+  Variables (a' b': R).
+  Hypothesis a'bd: (Rmin a b < a' < Rmax a b).
+  Hypothesis b'bd: (Rmin a b < b' < Rmax a b).
+  Variables (c d: R).
+  Hypothesis holo: 
+    forall r t, Rmin c d < r < Rmax c d ->
+                Rmin a b < t < Rmax a b ->
+                Holo f f' (g r t).
+  Hypothesis cts: 
+    forall r t, Rmin c d < r < Rmax c d ->
+                Rmin a b < t < Rmax a b ->
+                continuous f' (g r t) .
+  Hypothesis smooth:
+    forall r t, Rmin c d < r < Rmax c d ->
+                Rmin a b < t < Rmax a b -> 
+                SmoothPath g1 g2 r t .
+  Hypothesis ctsBoundary:
+    forall r t, Rmin a b < t < Rmax a b ->
+                Rmin c d <= r <= Rmax c d ->
+                continuous f (g r t) /\ 
+                continuous (g1 ^~ t) r /\
+                continuous (g_t ^~ t) r.
+
+  Definition I q := RInt (fun t0 : R => Re (f (g q t0) * g_t q t0)) a' b'.
+  Lemma path_mvt:
+    exists xi, Rmin c d <= xi <= Rmax c d /\
+               (I d - I c)%R = 
+      ((Re (f (g xi b') * g_r xi b' - f (g xi a') * g_r xi a'))%C * (d-c))%R.
+  Proof.
+    have open_r: (open (fun z => Rmin c d < z < Rmax c d)) 
+      by apply: open_and; [apply: open_gt | apply: open_lt].
+     
+    apply (@MVT_gen I c d); 
+    [ move => r rbd; apply: path_independence_part_3_real | ].
+    - apply: @locally_open rbd; first by apply: open_r.
+      move => ? ? ? ?. apply: holo; auto.
+    - move => *; by apply: cts.
+    - apply: @locally_open rbd; first by apply: open_r.
+      move => ? ? ? ?. by apply: smooth.
+    - auto.
+    - auto.
+    - move => r rbd. 
+      Print continuity_pt.
+      rewrite /I continuity_pt_filterlim.
+      have:= filterlim_RInt (
+               (fun q t0 : R => Re (f (g q t0) * g_t q t0)))
+               a' b'
+               (locally r)
+               (ltac:(apply locally_filter)).
+      move => /(_ (fun t0 : R => Re (f (g r t0) * g_t r t0))
+               (fun q => RInt (fun t0 : R => Re (f (g q t0) * g_t q t0)) a' b')
+        ).  
+      case.
+      + admit.
+      + admit.
+      + move => ? [H1 /is_RInt_unique ->]; auto.
+
+
+    
 
   Definition c_circle (t:R):C := (cos t, sin t).
   Definition c_circle' (t:R):C := (-sin t, cos t)%R.
