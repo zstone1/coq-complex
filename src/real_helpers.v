@@ -268,14 +268,16 @@ Proof.
 Qed.
 
 Ltac auto_continuous_aux :=
-  try apply: continuous_id;
-  try apply: continuous_const;
-  try apply: continuous_pair; 
-  try apply: continuous_scal;
-  try apply: continuous_minus; 
-  try apply: continuous_plus; 
-  try apply: continuous_fst; 
-  try apply: continuous_snd.
+  first 
+  [ apply: continuous_id
+  | apply: continuous_const
+  | apply: continuous_pair
+  | apply: continuous_scal
+  | apply: continuous_minus
+  | apply: continuous_plus
+  | apply: continuous_fst
+  | apply: continuous_snd
+  | apply: continuous_opp].
 Ltac auto_continuous x z := 
   have: continuous x z;
   rewrite /x;
