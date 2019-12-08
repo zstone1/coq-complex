@@ -1036,18 +1036,87 @@ Lemma path_independence_part_4:
     )%R; auto_derive_all. 
   Qed.
 
+  Open Scope R.
+  Lemma differentiable_pt_scal: forall f x y,
+    ex_derive f y -> 
+    differentiable_pt (fun p q => p * f q) x y.
+  Proof.
+    move => f x y Ex.
+    eexists; eexists.
+    apply/filterdiff_differentiable_pt_lim. 
+    apply: (@is_derive_filterdiff (fun p q => p * f q)). 
+    - apply global_local => x'; auto_derive; eauto; field_simplify;
+        instantiate (1:= fun _ q => f q); auto.
+    - auto_derive; auto. 
+    - apply continuous_comp; simpl; try auto_continuous_aux.
+      apply: ex_derive_continuous.
+      auto_derive; auto.
+  Qed.
+
+  Lemma differentiable_pt_ext: forall f g x y,
+    (forall p q, f p q = g p q) -> 
+    differentiable_pt f x y <-> differentiable_pt g x y.
+  Proof.
+    split; move => [? [? G]]; eexists; eexists; 
+    eapply differentiable_pt_lim_ext.
+    - exists pos_half => *. apply H.
+    - eauto.
+    - exists pos_half => *. symmetry. apply H.
+    - eauto.
+  Qed.
+      
+
+
   Lemma smooth_circ: forall r t, 
     SmoothPath (fun r t => r * cos t)%R ( fun r t => r * sin t)%R r t.
   Proof.
-    move => r t; repeat split; try exists pos_half; repeat split.
-    - exists u; exists (cos v).
+
+    Ltac rerwite_under f := 
+      under differentiable_pt_ext => p q do (
+        set l := Derive _ _;
+        replace l with f
+      )
+      ;
+      rewrite /l; symmetry;
+      apply: is_derive_unique;
+      auto_derive; auto; field_simplify; auto;
+      apply: differentiable_pt_scal;
+      auto_derive; auto.
+    move => r t; repeat split; [exists pos_half | exists pos_half | .. ]; repeat split.
+    - apply differentiable_pt_scal; auto_derive; auto.
+    - apply (@differentiable_pt_ext _ (fun p q => (p * (- sin q))));
+      [ move => *; apply:is_derive_unique; auto_derive; auto; field_simplify; auto
+      | apply: differentiable_pt_scal; auto_derive; auto
+      ].
+    - apply (@differentiable_pt_ext _ (fun p q => cos q));
+      [ move => *; apply: is_derive_unique; auto_derive; auto; field_simplify; auto
+      | idtac
+      ].
+      eexists; eexists.
       apply/filterdiff_differentiable_pt_lim. 
-      under ext_filterdiff_d => z.
-        set p := (_ + _)%R.
-        replace p with (plus (scal z.1 ((fun u _ => u) u v )) (scal z.2 (cos v)) ).
-      over.
-      rewrite /p; auto.
-      apply is_derive_filterdiff with (dfx := (fun u _ => u)).
+      apply: (@is_derive_filterdiff (fun p q => cos q)).
+      + apply global_local => x. auto_derive; eauto. 
+        instantiate (1:= fun _ _ => 0); auto.
+      + auto_derive; eauto.
+      + apply continuous_const.
+    - apply differentiable_pt_scal; auto_derive; auto.
+    - apply (@differentiable_pt_ext _ (fun p q => (p * (cos q))));
+      [ move => *; apply:is_derive_unique; auto_derive; auto; field_simplify; auto
+      | apply: differentiable_pt_scal; auto_derive; auto
+      ].
+    - apply (@differentiable_pt_ext _ (fun p q => sin q));
+      [ move => *; apply:is_derive_unique; auto_derive; auto; field_simplify; auto
+      | idtac
+      ].
+      eexists; eexists.
+      apply/filterdiff_differentiable_pt_lim. 
+      apply: (@is_derive_filterdiff (fun p q => _ q)).
+      + apply global_local => x. auto_derive; eauto. 
+        instantiate (1:= fun _ _ => 0); auto.
+      + auto_derive; eauto.
+      + apply continuous_const.
+    - 
+      
       
 
 
