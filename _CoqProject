@@ -5,3 +5,4 @@ src/ext_rewrite.v
 src/domains.v
 src/cauchy_riemann.v
 src/path_independence.v
+src/cauchy_integral.v
