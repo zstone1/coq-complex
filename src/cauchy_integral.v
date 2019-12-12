@@ -41,6 +41,18 @@ Proof.
 Qed.
 
 Open Scope R.
+
+Lemma c_circle_norm: forall r t,
+  Cmod( (r*cos t, r * sin t)) = Rabs r.
+Proof.
+  move => r t.
+  elim_norms.
+  - nra.
+  - field_simplify_eq. 
+    rewrite -Rmult_plus_distr_l Rplus_comm 
+            -?Rsqr_pow2 sin2_cos2.
+    lra.
+Qed.
 Lemma differentiable_pt_scal: forall f x y,
   ex_derive f y -> 
   differentiable_pt (fun p q => p * f q) x y.
@@ -82,10 +94,27 @@ Proof.
   - eauto.
 Qed.
     
+Lemma differentiable_pt_plus: forall f k x y,
+  differentiable_pt f x y -> differentiable_pt (fun p q => k + f p q) x y.
+Proof.
+  move => f k x y [d1 [d2 D]].
+  apply differentiable_pt_comp.
+  - exists 1. exists 1. apply filterdiff_differentiable_pt_lim. 
+    eapply filterdiff_ext_lin.
+    apply filterdiff_linear.
+    apply: is_linear_plus.
+    move => *; simpl; lra.
+  - exists 0. exists 0; apply filterdiff_differentiable_pt_lim. 
+    eapply filterdiff_ext_lin.
+    apply: filterdiff_const.
+    move => * //=.
+    rewrite /zero //=; lra.
+  - exists d1; exists d2; auto.
+Qed.
 
 
-Lemma smooth_circ: forall r t, 
-  SmoothPath (fun r t => r * cos t)%R ( fun r t => r * sin t)%R r t.
+Lemma smooth_circ: forall z r t, 
+  SmoothPath (fun r t => z.1 + r * cos t)%R ( fun r t => z.2 + r * sin t)%R r t.
 Proof.
 
   Ltac rerwite_under f := 
@@ -118,7 +147,8 @@ Proof.
     auto;
     apply: differentiable_continuity_pt;
     apply differentiable_pt_proj2; auto_derive; auto.
-  - apply differentiable_pt_scal; auto_derive; auto.
+  - apply: differentiable_pt_plus.
+    apply differentiable_pt_scal; auto_derive; auto.
   - apply (@differentiable_pt_ext _ (fun p q => (p * (- sin q))));
     [ move => *; apply:is_derive_unique; auto_derive; auto; field_simplify; auto
     | apply: differentiable_pt_scal; auto_derive; auto
@@ -128,7 +158,8 @@ Proof.
     | apply: differentiable_pt_proj2; auto_derive; auto
     ].
     
-  - apply differentiable_pt_scal; auto_derive; auto.
+  - apply differentiable_pt_plus.
+    apply differentiable_pt_scal; auto_derive; auto.
   - apply (@differentiable_pt_ext _ (fun p q => (p * (cos q))));
     [ move => *; apply:is_derive_unique; auto_derive; auto; field_simplify; auto
     | apply: differentiable_pt_scal; auto_derive; auto
@@ -142,19 +173,112 @@ Qed.
 Open Scope C.
 Definition CHolo f f' z := 
   Holo f f' z /\ continuous f' z.
-Lemma circ_independence : forall (f: C -> C) f' z (r r' r'': posreal),
-  (forall z', ball z r z' -> CHolo f f' z') -> 
-  r' < r ->
-  r'' < r ->
-  RInt (V:=C_R_CompleteNormedModule) 
-    (fun t0 => f (c_circle r' t0) * c_circle' r' t0) 0 (2 * PI) =
-  RInt (V:=C_R_CompleteNormedModule) 
-    (fun t0 => f(c_circle r'' t0) * c_circle' r'' t0) 0 (2 * PI).
-Proof.
-  move => f f' z r r' r'' holo H1 H2.
-  apply path_independence_part_4.
 
+Lemma circ_independence : forall (f: C -> C) f' z (r:posreal) (r' r'': R),
+  (forall z', ball z r z' -> CHolo f f' z') -> 
+   r' < r'' ->
+  -r < r' < r ->
+  -r < r'' < r ->
+  RInt (V:=C_R_CompleteNormedModule) 
+    (fun t0 => f (z + c_circle r' t0) * c_circle' r' t0) 0 (2 * PI) =
+  RInt (V:=C_R_CompleteNormedModule) 
+    (fun t0 => f(z + c_circle r'' t0) * c_circle' r'' t0) 0 (2 * PI).
+Proof.
+  move => f f' z r r' r'' holo ? [? ?] [? ?].
   
+  have indep := @path_independence_part_4 
+                (-PI)%R (3*PI) 0 (2*PI)
+                (-r) r r' r''
+                f f' 
+                (fun r t => z.1 + r * cos t)%R
+                (fun r t => z.2 + r * sin t)%R.
+  have pig0 := PI_RGT_0.
+  have rpos := cond_pos r.
+  case: indep.
+  2-5: rewrite Rmin_left; last (by lra); rewrite Rmax_right; lra.
+  - auto.
+  - move => r0 t r0bd tbd.
+    rewrite Rmax_right in r0bd; last by lra.
+    rewrite Rmin_left in r0bd; last by lra.
+    move : r0bd => [??].
+    rewrite -and_assoc.
+    split.
+    + move: holo => /(_ ( z + c_circle r0 t)).
+      case. {
+        unfold_alg ; rewrite /AbsRing_ball; unfold_alg.
+        set p := _ + _.
+        simplify_as_R2 e p.
+        rewrite c_circle_norm. 
+        destruct (Rlt_dec r0 0).
+        - rewrite Rabs_left; lra.
+        - rewrite Rabs_pos_eq; lra.
+      }
+      set p := z + _.
+      simplify_as_R2 e p.
+      auto.
+    + have:= smooth_circ z r0 t. apply.
+  - move => r0 r0bd.
+    rewrite Rmax_right in r0bd; last by lra.
+    rewrite Rmin_left in r0bd; last by lra.
+    move : r0bd => [??].
+    split;
+    rewrite cos_0 sin_0 cos_2PI sin_2PI; auto.
+  - move => I1 [I2 H].
+    under RInt_ext => t0 _.
+      set p := z + _.
+      simplify_as_R2 e p.
+      rewrite /c_circle'.
+      set p := r' * _.
+      simplify_as_R2 e p.
+      replace (-r'* sin t0)%R with (Derive (fun t : R => (z.1 + r' * cos t)%R) t0).
+      2: apply is_derive_unique; auto_derive; auto; lra.
+      replace (r'* cos t0)%R with (Derive (fun t : R => (z.2 + r' * sin t)%R) t0) at 2.
+      2: apply is_derive_unique; auto_derive; auto; lra.
+    over.
+    rewrite H.
+    symmetry.
+    under RInt_ext => t0 _.
+      set p := z + _.
+      simplify_as_R2 e p.
+      rewrite /c_circle'.
+      set p := r'' * _.
+      simplify_as_R2 e p.
+      replace (-r''* sin t0)%R with (Derive (fun t : R => (z.1 + r'' * cos t)%R) t0).
+      2: apply is_derive_unique; auto_derive; auto; lra.
+      replace (r''* cos t0)%R with (Derive (fun t : R => (z.2 + r'' * sin t)%R) t0) at 2.
+      2: apply is_derive_unique; auto_derive; auto; lra.
+    over.
+    auto.
+Qed.
+      
+      
+Theorem cauchy_integral_circ : forall (f: C -> C) f' z (r r':posreal),
+  r' < r ->
+  (forall z', ball z r z' -> CHolo f f' z') ->
+  RInt (V:=C_R_CompleteNormedModule) 
+    (fun t0 => f (z + c_circle r' t0) * c_circle' r' t0) 0 (2 * PI) = zero.
+Proof.
+  move => f f' z r r' ? holo .
+  have? := cond_pos r.
+  have? := cond_pos r'.
+  rewrite -(@circ_independence f f' z r 0 r').
+  3-5: lra.
+  2: auto.
+  under RInt_ext => t _.
+    rewrite /c_circle'.
+    set p := _ * _.
+    simplify_as_R2 e p.
+    replace (0,0) with (zero (G:= C_AbelianGroup)); last by auto.
+  over.
+  rewrite RInt_const.
+  rewrite scal_zero_r.
+  auto.
+Qed.
+
+
+
+Qed.
+
 
 
   
