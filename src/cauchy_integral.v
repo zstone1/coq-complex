@@ -22,24 +22,6 @@ Open Scope C.
 Definition c_circle (r: R) (t:R):C := r * (cos t, sin t).
 Definition c_circle' (r: R) (t:R):C := r * (-sin t, cos t)%R.
 
-Lemma c_circle_deriv: forall r x, is_derive (c_circle r) x ((c_circle' r) x).
-Proof.
-  rewrite /c_circle /c_circle'.
-  move => r x.
-  under ext_is_derive_glo => y.
-    set p := _ * _.
-    simplify_as_R2 e p.
-  over.
-  set p := _ * _.
-  simplify_as_R2  e p.
-  apply (is_derive_pair 
-    (f := fun q => r * cos q) 
-    (g := fun q => r * sin q)
-    (f' := fun q => -r * sin q)
-    (g' := fun q => r * cos q)
-  )%R; auto_derive_all. 
-Qed.
-
 Open Scope R.
 
 Lemma c_circle_norm: forall r t,
@@ -173,9 +155,11 @@ Qed.
 Open Scope C.
 Definition CHolo f f' z := 
   Holo f f' z /\ continuous f' z.
+Definition CHolo_on D f := exists f',
+  forall z, D z -> CHolo f f' z.
 
-Lemma circ_independence : forall (f: C -> C) f' z (r:posreal) (r' r'': R),
-  (forall z', ball z r z' -> CHolo f f' z') -> 
+Lemma circ_independence : forall (f: C -> C) z (r:posreal) (r' r'': R),
+  CHolo_on (ball z r) f ->
    r' < r'' ->
   -r < r' < r ->
   -r < r'' < r ->
@@ -184,7 +168,7 @@ Lemma circ_independence : forall (f: C -> C) f' z (r:posreal) (r' r'': R),
   RInt (V:=C_R_CompleteNormedModule) 
     (fun t0 => f(z + c_circle r'' t0) * c_circle' r'' t0) 0 (2 * PI).
 Proof.
-  move => f f' z r r' r'' holo ? [? ?] [? ?].
+  move => f z r r' r'' [f' holo] ? [? ?] [? ?].
   
   have indep := @path_independence_part_4 
                 (-PI)%R (3*PI) 0 (2*PI)
@@ -252,16 +236,16 @@ Proof.
 Qed.
       
       
-Theorem cauchy_integral_circ : forall (f: C -> C) f' z (r r':posreal),
+Lemma cauchy_integral_theorem_circ : forall (f: C -> C) z (r r':posreal),
   r' < r ->
-  (forall z', ball z r z' -> CHolo f f' z') ->
+  CHolo_on (ball z r) f ->
   RInt (V:=C_R_CompleteNormedModule) 
     (fun t0 => f (z + c_circle r' t0) * c_circle' r' t0) 0 (2 * PI) = zero.
 Proof.
-  move => f f' z r r' ? holo .
+  move => f z r r' ? holo .
   have? := cond_pos r.
   have? := cond_pos r'.
-  rewrite -(@circ_independence f f' z r 0 r').
+  rewrite -(@circ_independence f z r 0 r').
   3-5: lra.
   2: auto.
   under RInt_ext => t _.
@@ -274,37 +258,56 @@ Proof.
   rewrite scal_zero_r.
   auto.
 Qed.
-
-
-
-Qed.
-
-
-
   
 Record Contour := mkContour {
   gamma: R -> C; 
-  l: R;
-  r: R;
-  l_to_r: l < r;
-  diff: forall t, l < t < r -> ex_derive gamma t;
+  gamma': R -> C;
+  l_end: R;
+  r_end: R;
+  endpoint_interval: l_end < r_end;
+  contour_derive: forall t, l_end < t < r_end -> is_derive gamma t (gamma' t);
 }.
 Open Scope C. 
+Definition is_CInt (g: Contour) (f: C -> C) (z:C) :=
+  is_RInt (fun t => f (gamma g t) * (gamma' g t)) (l_end g) (r_end g) z.
 Definition CInt {g: Contour } f := 
   RInt (V:=C_R_CompleteNormedModule) 
-    (fun t => f (gamma g t) * (gamma' g t)) (l g) (r g) .
-Definition is_CInt (g: Contour) (f: C -> C) (z:C) :=
-  is_RInt (fun t => f (gamma g t) * (gamma' g t)) (l g) (r g) z.
+    (fun t => f (gamma g t) * (gamma' g t)) (l_end g) (r_end g) .
 
-    eexists; eexists.
-    apply/filterdiff_differentiable_pt_lim. 
-    apply: (@is_derive_filterdiff 
-      (fun p q => Derive (fun t0 => p * cos t0) q)).
-    + apply global_local => x'.
-      
-    
-    
+Program Definition circC (z:C) (r: posreal) := {|
+  gamma := fun t => z + c_circle r t;
+  gamma' := c_circle' r;
+  l_end := 0;
+  r_end := 2*PI;
+|}.
+Obligation 1. 
+Proof. have:= PI_RGT_0; lra. Qed.
+Obligation 2. 
+Proof. 
+  rewrite /c_circle /c_circle'.
+  under ext_is_derive_glo => y.
+    set p := _ + _.
+    simplify_as_R2 e p.
+  over.
+  set p := _ * _.
+  simplify_as_R2  e p.
+  apply (is_derive_pair 
+    (f := fun q => z.1 + r * cos q) 
+    (g := fun q => z.2 + r * sin q)
+    (f' := fun q => -r * sin q)
+    (g' := fun q => r * cos q)
+  )%R; auto_derive_all. 
+Qed.
 
+Theorem cauchy_integral_theorem: forall (f: C -> C) z (r r':posreal),
+  r' < r ->
+  CHolo_on (ball z r) f ->
+  CInt (g:= circC z r') f = zero.
+Proof.
+  move => f z r r' r'bd holo.
+  rewrite /CInt //=.
+  rewrite (@cauchy_integral_theorem_circ f z r r'); auto.
+Qed.
 
 Lemma rmult_scal : forall (r:R) (z:C),
   (RtoC r) * z = scal r z.
