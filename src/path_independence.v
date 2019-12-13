@@ -11,14 +11,13 @@ Unset Printing Implicit Defensive.
 Set Bullet Behavior "Strict Subproofs".
 
 
-Require Import domains cauchy_riemann.
+Require Import domains cauchy_riemann real_helpers.
 
 Open Scope program_scope.
 Open Scope general_if_scope.
 Require Import domains ext_rewrite real_helpers.
 
 Open Scope R.
-
 
 Lemma path_independence_part_1: forall
     (u v: R -> R -> R) udx udy vdx vdy
@@ -61,7 +60,7 @@ Proof.
   
   `Begin eq p. { rewrite {}/p.
 
-  | {(   Derive _ r - Derive _ r   )} rewrite ?Derive_minus.
+  | {(   Derive _ _ - Derive _ _   )} rewrite ?Derive_minus.
     apply ex_derive_mult.
     apply (differentiable_pt_lim_left ug).
     apply (differentiable_pt_lim_left dg1t).
@@ -362,6 +361,7 @@ Proof.
            /differentiable_pt_ex_derive [H5 H6].
 Qed.
 
+Open Scope C.
 Lemma Holo_mult: forall f g z k,
   Holo f g z -> Holo (fun q => k * (f q)) (fun q => k * (g q)) z.
 Proof.
@@ -377,67 +377,6 @@ Proof.
   rewrite -/(is_derive _ _ _).
   unfold_alg.
 Qed.
-
-
-Lemma path_independence_part_2_imaginary:
-  forall (u v u' v': R -> R -> R) r t g1 g2, 
-  let g:= fun p q => (g1 p q, g2 p q) in
-  let f:= fun z => (u z.1 z.2, v z.1 z.2) in
-  let f':= fun z => (u' z.1 z.2, v' z.1 z.2) in
-  SmoothPath g1 g2 r t -> 
-  Holo f f' (g r t) -> 
-  let g_t := fun p q => (Derive (g1 p) q, Derive (g2 p) q) in
-  let g_r := fun p q => (Derive (g1 ^~ q) p, Derive (g2 ^~ q) p) in
-  Derive ( fun t0 => Im (f (g r t0) * g_r r t0 ))%C t =
-  Derive ( fun r0 => Im (f (g r0 t) * g_t r0 t ))%C r  
-.
-Proof. 
-  move => u v u' v' r t g1 g2 g f f' smooth.
-  move => /(Holo_mult Ci).
-  move => + g_t g_r.
-  rewrite /Holo /is_derive.
-  under ext_filterdiff_glo => z.
-    set p := _ * _.
-    simplify_as_R2 e p.
-  over.
-  under ext_filterdiff_d => z.
-    set p := _ * _.
-    simplify_as_R2 e p.
-  over.
-  move => holo.
-  rewrite -/(is_derive _ _ _) in holo.
-  have := @path_independence_part_2_real 
-    (fun x y => -v x y)%R
-    (fun x y => u x y)
-    (fun x y => -v' x y)%R
-    (fun x y => u' x y)
-    r t g1 g2
-    smooth
-    holo
-  .
-  move => H.
-  rewrite -[LHS]Ropp_involutive -[RHS]Ropp_involutive. 
-  apply Ropp_eq_compat. 
-  rewrite -2!Derive_opp.
-  simpl in *.
-  under Derive_ext => t0 do 
-    rewrite Rplus_comm Ropp_plus_minus_distr Ropp_mult_distr_l.
-  symmetry.
-  under Derive_ext => r0 do 
-    rewrite Rplus_comm Ropp_plus_minus_distr Ropp_mult_distr_l.
-  auto.
-Qed.
-
-Ltac combine_local := 
-match goal with 
-| H1: @locally ?T _ _, H2: @locally ?T _ _  |- _ => 
-  have:= filter_and _ _ H1 H2;
-  try move /(_ ltac:(apply locally_filter)) {H1 H2}
-
-end.
-
-
-
 
 Ltac diff_help := timeout 1 
   match goal with 
@@ -773,8 +712,9 @@ Section DeriveHomotopy .
       pose del := mkposreal delv delpos.
       move: unif_cts => /(_ (del) r rbd) H.
       apply: filter_imp H => r'.
-      unfold_alg; rewrite /AbsRing_ball //=.
       move => H.
+      rewrite /ball //= /AbsRing_ball.
+
       rewrite -!RInt_minus /abs //=.
       eapply (Rle_lt_trans).  
       eapply abs_RInt_le_const; first by left;auto.
@@ -1001,7 +941,7 @@ Proof.
 Qed.
     
 
-Lemma path_independence_part_4:
+Theorem path_independence:
   forall (a b a' b' c d c' d' :R) (f f' : C -> C) (g1 g2: R -> R -> R),
   let g := fun r t => (g1 r t, g2 r t) in
   let g_t := fun p q => (Derive (g1 p) q, Derive (g2 p) q) in 

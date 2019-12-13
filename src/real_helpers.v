@@ -1,6 +1,7 @@
 Require Import Reals Psatz Lra Bool RelationClasses.
 From Coquelicot Require Import Continuity 
-  Derive Hierarchy AutoDerive Rbar Complex RInt RInt_analysis.
+  Derive Hierarchy AutoDerive Rbar Complex RInt RInt_analysis
+  Rcomplements.
 From Coq Require Import ssreflect ssrfun ssrbool.
 Close Scope boolean_if_scope.
 Require Import Program.
@@ -362,3 +363,33 @@ Proof.
   case(Rle_dec x y) => H; split => H'; auto.
   discriminate.
 Qed.
+
+
+Lemma Rabs_lt_between_min_max: 
+   forall x y z : R, Rmin x y < z < Rmax x y -> Rabs (z - y) < Rabs (x - y).
+Proof.
+  move => x y z.
+  rewrite /Rmin /Rmax.
+  set p := (Rle_dec _ _).
+  case: p.
+  - move => _ ord.
+    rewrite ?Rabs_left; lra.
+  - move => _ ord.
+    rewrite ?Rabs_right; lra.
+Qed.
+Lemma Rabs_le_between_min_max_2: 
+   forall x y z : R, Rmin x y <= z <= Rmax x y -> Rabs (z - x) <= Rabs (y - x).
+Proof.
+  move => x y z.
+  rewrite Rmin_comm Rmax_comm => *.
+  apply (Rabs_le_between_min_max y x z).
+  auto.
+Qed.
+
+Ltac combine_local := 
+match goal with 
+| H1: @locally ?T _ _, H2: @locally ?T _ _  |- _ => 
+  have:= filter_and _ _ H1 H2;
+  try move /(_ ltac:(apply locally_filter)) {H1 H2}
+
+end.

@@ -220,7 +220,7 @@ Section Holo.
     Derive (fun t => u (z.1,t)) z.2 = Ropp(Derive (fun t => v (t,z.2)) z.1) /\
     g1 z = Derive (fun t => v (z.1,t)) z.2  /\
     g2 z = Derive (fun t => v (t,z.2)) z.1
-    .
+  .
   Proof.
     move => u v g1 g2 z.
     rewrite [x in Holo _ _ x]surjective_pairing.
@@ -232,31 +232,6 @@ Section Holo.
     
   Qed.
 
-  Lemma Rabs_lt_between_min_max: 
-     forall x y z : R, Rmin x y < z < Rmax x y -> Rabs (z - y) < Rabs (x - y).
-  Proof.
-    move => x y z.
-    rewrite /Rmin /Rmax.
-    set p := (Rle_dec _ _).
-    case: p.
-    - move => _ ord.
-      rewrite ?Rabs_left; lra.
-    - move => _ ord.
-      rewrite ?Rabs_right; lra.
-  Qed.
-  Lemma Rabs_le_between_min_max_2: 
-     forall x y z : R, Rmin x y <= z <= Rmax x y -> Rabs (z - x) <= Rabs (y - x).
-  Proof.
-    move => x y z.
-    rewrite Rmin_comm Rmax_comm => *.
-    apply (Rabs_le_between_min_max y x z).
-    auto.
-  Qed.
-
-  Ltac combine_local H := 
-  match goal with 
-  | J: locally _ _ |- _ => pose proof (filter_and _ _ J H) as H
-  end.
   Open Scope R.
   Theorem MVT_along_axis: forall u udx udy z,
     locally z ( fun q =>

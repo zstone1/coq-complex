@@ -170,7 +170,7 @@ Lemma circ_independence : forall (f: C -> C) z (r:posreal) (r' r'': R),
 Proof.
   move => f z r r' r'' [f' holo] ? [? ?] [? ?].
   
-  have indep := @path_independence_part_4 
+  have indep := @path_independence
                 (-PI)%R (3*PI) 0 (2*PI)
                 (-r) r r' r''
                 f f' 
