@@ -158,21 +158,22 @@ Definition CHolo f f' z :=
 Definition CHolo_on D f := exists f',
   forall z, D z -> CHolo f f' z.
 
-Lemma circ_independence : forall (f: C -> C) z (r:posreal) (r' r'': R),
-  CHolo_on (ball z r) f ->
+Lemma circ_independence : forall (f: C -> C) z (r:posreal) (l r' r'': R),
+  CHolo_on (fun z' => l < Cmod (z'-z) < r) f ->
+   -r <= l ->
    r' < r'' ->
-  -r < r' < r ->
-  -r < r'' < r ->
+   l < r' < r ->
+   l < r'' < r ->
   RInt (V:=C_R_CompleteNormedModule) 
     (fun t0 => f (z + c_circle r' t0) * c_circle' r' t0) 0 (2 * PI) =
   RInt (V:=C_R_CompleteNormedModule) 
     (fun t0 => f(z + c_circle r'' t0) * c_circle' r'' t0) 0 (2 * PI).
 Proof.
-  move => f z r r' r'' [f' holo] ? [? ?] [? ?].
+  move => f z r l r' r'' [f' holo] ? ? [? ?] [? ?].
   
   have indep := @path_independence
                 (-PI)%R (3*PI) 0 (2*PI)
-                (-r) r r' r''
+                (l) r r' r''
                 f f' 
                 (fun r t => z.1 + r * cos t)%R
                 (fun r t => z.2 + r * sin t)%R.
@@ -190,12 +191,18 @@ Proof.
     + move: holo => /(_ ( z + c_circle r0 t)).
       case. {
         unfold_alg ; rewrite /AbsRing_ball; unfold_alg.
-        set p := _ + _.
+        set p := _ - _.
         simplify_as_R2 e p.
-        rewrite c_circle_norm. 
-        destruct (Rlt_dec r0 0).
-        - rewrite Rabs_left; lra.
-        - rewrite Rabs_pos_eq; lra.
+        rewrite c_circle_norm.
+        split.
+        - destruct (Rlt_dec l 0).
+          + eapply Rlt_le_trans. 
+            apply r1.
+            apply Rabs_pos.
+          + rewrite Rabs_right; lra.
+        - destruct (Rlt_dec r0 0).
+          + rewrite Rabs_left; lra.
+          + rewrite Rabs_pos_eq; lra.
       }
       set p := z + _.
       simplify_as_R2 e p.
@@ -245,9 +252,14 @@ Proof.
   move => f z r r' ? holo .
   have? := cond_pos r.
   have? := cond_pos r'.
-  rewrite -(@circ_independence f z r 0 r').
-  3-5: lra.
-  2: auto.
+  rewrite -(@circ_independence f z r (-r) 0 r').
+  3-6: lra.
+  2: { 
+    move: holo => [f' h].
+    exists f' => z0 [? ?].
+    apply h.
+    unfold_alg.
+  }
   under RInt_ext => t _.
     rewrite /c_circle'.
     set p := _ * _.
@@ -413,7 +425,7 @@ Qed.
   
 Open Scope C.
 
-Lemma cts_inv_contour: forall a r , 
+Lemma div_z_continuous_contour: forall a r , 
   cts_on_contour (fun q : C => 1 / (q - a)) (circC a r).
 Proof.
   move => a r.
@@ -483,5 +495,37 @@ Proof.
   Unshelve.
   apply/(@ex_CInt_RInt (fun q =>1/ (q - a)) _).
   apply cts_CInt.
-  apply: cts_inv_contour.
+  apply: div_z_continuous_contour.
 Qed.
+
+Lemma squeeze: forall x,
+   (forall (eps: posreal), Cmod x < eps) -> x = 0.
+Proof.
+  move => x sqz.
+  destruct (Rle_dec 0 (Cmod x)).
+  destruct r. 
+  - move: sqz => /(_ (mkposreal _ H)) Q.
+    simpl in *.
+    lra.
+  - apply Cmod_eq_0; auto.
+  - contradict n. 
+    apply Cmod_ge_0.
+Qed.
+
+Lemma cauchy_integral_aux: forall f (r r': posreal) a, 
+  r' < r ->
+  CHolo_on (ball a r) f ->
+  CInt (g:=circC a r') (fun z => (f(z) - f(a))/ (z-a))
+  = zero.
+Proof.
+  move => f r r' a rbd holo.
+  apply squeeze => eps.
+  have: continuous f a. {
+    eapply filterlim_filter_le_1.
+    2: apply: ex_derive_continuous. 
+    1: move => P. apply prod_c_topology_eq.
+    case: holo => f' /(_ a (ball_center _ _)) H.
+    exists (f' a).
+    apply H.
+  }
+  move => /filterlim_locally /(_ (pos_div_2 eps)) [del h].
