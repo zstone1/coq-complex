@@ -1,6 +1,6 @@
 Require Import Reals Psatz Lra RelationClasses.
 From Coquelicot Require Import Continuity 
-  Rcomplements Derive Hierarchy AutoDerive Rbar Complex 
+  Rcomplements Derive Hierarchy AutoDerive Rbar Complex
   RInt RInt_analysis Derive_2d.
 From Coq Require Import ssreflect ssrfun ssrbool.
 Close Scope boolean_if_scope.
@@ -265,11 +265,14 @@ Record Contour := mkContour {
   l_end: R;
   r_end: R;
   endpoint_interval: l_end < r_end;
-  contour_derive: forall t, l_end < t < r_end -> is_derive gamma t (gamma' t);
+  contour_derive: forall t, l_end <= t <= r_end -> is_derive gamma t (gamma' t);
+  cts_derive: forall t, l_end <= t <= r_end -> continuous gamma' t;
 }.
 Open Scope C. 
 Definition is_CInt (g: Contour) (f: C -> C) (z:C) :=
   is_RInt (fun t => f (gamma g t) * (gamma' g t)) (l_end g) (r_end g) z.
+Definition ex_CInt (g: Contour) (f: C -> C) :=
+  exists z, is_CInt g f z. 
 Definition CInt {g: Contour } f := 
   RInt (V:=C_R_CompleteNormedModule) 
     (fun t => f (gamma g t) * (gamma' g t)) (l_end g) (r_end g) .
@@ -298,6 +301,13 @@ Proof.
     (g' := fun q => r * cos q)
   )%R; auto_derive_all. 
 Qed.
+Obligation 3.
+Proof.
+rewrite /c_circle'.
+auto_continuous_aux; simpl; apply: ex_derive_continuous;
+auto_derive; auto.
+Qed.
+
 
 Theorem cauchy_integral_theorem: forall (f: C -> C) z (r r':posreal),
   r' < r ->
@@ -318,4 +328,160 @@ Proof.
   simplify_as_R2 e p.
   set p := RHS.
   simplify_as_R2 e p.
+Qed.
+
+Definition cts_on_contour (f: C -> C) g := 
+  forall t, l_end g <= t <= r_end g -> continuous f (gamma g t).
+
+Lemma ex_CInt_RInt: forall f g, 
+  ex_RInt (fun t => f (gamma g t) * (gamma' g t)) (l_end g) (r_end g) <-> 
+  ex_CInt g f.
+Proof.
+  move => f g; split;
+  move => [l H]; exists l; apply H.
+Qed.
+
+Lemma cts_CInt: forall (f: C -> C) g, 
+  cts_on_contour f g -> ex_CInt g f.
+Proof.
+  move => f g cts.
+  rewrite -ex_CInt_RInt -ex_RInt_prod.
+  apply: ex_RInt_continuous => t tbd.
+  rewrite Rmin_left in tbd.
+  rewrite Rmax_right in tbd.
+  2-3: left; apply endpoint_interval.
+  change_topology.
+  apply: continuous_mult; first apply continuous_comp.
+  - eapply filterlim_filter_le_2.
+    2: apply ex_derive_continuous; eexists; eapply (contour_derive tbd)  .
+    move => P. auto.
+  - move: cts => /(_ t tbd) => H.
+    eapply filterlim_filter_le_2.
+    2: apply H.
+    move => P. 
+    rewrite prod_c_topology_eq //=.
+  - eapply filterlim_filter_le_2.
+    2: apply (cts_derive); auto.
+    move => *; rewrite prod_c_topology_eq //=.
+Qed.
+       
+
+  
+Lemma Rlt_0_neq_0: forall a,
+  0 < a -> a <> 0.
+Proof.
+  move => *; lra.
+Qed.
+Open Scope R.
+Lemma continuous_Cinv: forall (z:C), 
+  z <> 0 -> continuous (Cdiv 1) z.
+Proof.
+  move => z z_neq_0.
+  have ?: (z.1 * z.1 + z.2 * z.2 <> 0). {
+    contradict z_neq_0.
+    field_simplify.
+    rewrite [LHS]surjective_pairing.
+    f_equal; nra.
+  }
+
+  apply: continuous_pair; simpl;
+  rewrite/continuous; 
+  rewrite [x in _ _ (_ x) _]surjective_pairing;
+  set p := (x in _ x _ _);
+  pose h := fun a b => p (a,b);
+  rewrite -(@continuity_2d_pt_filterlim h);
+  rewrite /h /p;
+  eapply continuity_2d_pt_ext. 
+  1,3: move => x y;
+      rewrite ?Rmult_0_l ?Rminus_0_l ?Rmult_1_l 
+              ?Rmult_1_r ?Rminus_0_r ?Rplus_0_r //=.
+  1: apply: continuity_2d_pt_mult; first by 
+      apply continuity_2d_pt_id1.
+  2: apply: continuity_2d_pt_mult; first by 
+      apply: continuity_2d_pt_opp;
+      apply continuity_2d_pt_id2.
+  all:
+    apply: continuity_2d_pt_inv; last (by auto);
+    apply continuity_2d_pt_plus;
+    apply continuity_2d_pt_mult;
+    (try apply: continuity_2d_pt_id2);
+    apply: continuity_2d_pt_id1.
+Qed.
+    
+
+      
+  
+Open Scope C.
+
+Lemma cts_inv_contour: forall a r , 
+  cts_on_contour (fun q : C => 1 / (q - a)) (circC a r).
+Proof.
+  move => a r.
+  move => t tbd; simpl in *.
+  have ?:= cond_pos r.
+  apply continuous_comp; first repeat auto_continuous_aux.
+  apply: continuous_Cinv.
+  set p := (x in x <> _).
+  simplify_as_R2 e p.
+  rewrite Cmod_gt_0 c_circle_norm Rabs_pos_eq; nra.
+Qed.
+
+
+Lemma integral_div_z: forall a r, 
+  CInt (g:= circC a r) (fun z => 1/(z-a)) = 2 * PI * Ci.
+Proof.
+  move => a r.
+  have? := cond_pos r. 
+  rewrite /CInt split_cint.
+  2: shelve.
+  simpl.
+  set p := RHS.
+  simplify_as_R2 e p.
+  rewrite /c_circle /c_circle' //=.
+  f_equal.
+  - rewrite /compose //=.
+    under RInt_ext => t _.
+      field_simplify.
+    over.
+    apply Rlt_0_neq_0.
+    field_simplify.
+    rewrite -Rmult_plus_distr_l -?Rsqr_pow2 Rplus_comm sin2_cos2 /Rsqr.
+    field_simplify.
+    nra.
+
+    under RInt_ext => t _.
+      rewrite -Rmult_plus_distr_l -?Rsqr_pow2 Rplus_comm sin2_cos2.
+      set p := (0 / _)%R.
+      replace p with (0)%R;
+      rewrite {}/p.
+    over.
+    lra.
+    rewrite RInt_const /scal //= /mult //=. lra.
+  - rewrite /compose //=.
+    under RInt_ext => t _.
+      field_simplify.
+    over.
+    apply Rlt_0_neq_0.
+    field_simplify.
+    rewrite -Rmult_plus_distr_l -?Rsqr_pow2 Rplus_comm sin2_cos2 /Rsqr.
+    field_simplify.
+    nra.
+    under RInt_ext => t _.
+      set p := (_ / _)%R.
+      replace p with (1)%R;
+      rewrite {}/p.
+    over.
+    field_simplify_eq; auto.
+
+    apply Rlt_0_neq_0.
+    field_simplify.
+    rewrite -Rmult_plus_distr_l -?Rsqr_pow2 Rplus_comm sin2_cos2 /Rsqr.
+    field_simplify.
+    nra.
+
+    rewrite RInt_const /scal //= /mult //=. lra.
+  Unshelve.
+  apply/(@ex_CInt_RInt (fun q =>1/ (q - a)) _).
+  apply cts_CInt.
+  apply: cts_inv_contour.
 Qed.
