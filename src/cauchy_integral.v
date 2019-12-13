@@ -320,6 +320,28 @@ auto_continuous_aux; simpl; apply: ex_derive_continuous;
 auto_derive; auto.
 Qed.
 
+Lemma circ_independence_C : forall (f: C -> C) z (r' r'' :posreal) l r,
+  CHolo_on (fun z' => l < Cmod (z'-z) < r) f ->
+   0 <= l -> 
+   l < r' < r ->
+   l < r'' < r ->
+  CInt (g:= circC z r') f = 
+  CInt (g:= circC z r'') f.
+Proof.
+  move => f z r' r''.
+  wlog: r' r'' / r' < r''. {
+    move => H.
+    destruct (Rtotal_order r' r'');[ | destruct H0].
+    - apply: H; auto.
+    - move => *. rewrite /CInt //= H0 //=.
+    - move => *; symmetry; apply: H; eauto.
+  }
+  move => ? l r holo r'bd r''bd.
+  rewrite /CInt.
+  apply: (@circ_independence _ _ (mkposreal r _) l); eauto.
+  - have?:= cond_pos r'; lra.
+  - move => ?; simpl. lra.
+Qed.
 
 Theorem cauchy_integral_theorem: forall (f: C -> C) z (r r':posreal),
   r' < r ->
@@ -438,6 +460,94 @@ Proof.
   rewrite Cmod_gt_0 c_circle_norm Rabs_pos_eq; nra.
 Qed.
 
+Lemma cts_on_contour_mult: forall f g gam, 
+  cts_on_contour f gam ->
+  cts_on_contour g gam -> 
+  cts_on_contour (fun z => f z * g z) gam.
+Proof.
+  move => f g gam ctsf ctsg t tbd.
+  change_topology.
+  apply: continuous_mult; change_topology.
+  - apply: ctsf; auto.
+  - apply: ctsg; auto.
+Qed.
+
+
+Open Scope R.
+Lemma holo_inv : forall (z: C), 
+  (z <> 0)%C -> (Holo (fun q => 1/q) (fun q => -1/(q * q)) z)%C.
+Proof.
+  move => z neq_0.
+  have zb : 0 < Rmax (Rabs z.1) (Rabs z.2). {
+    destruct z; simpl.
+    destruct (Req_dec 0 r);
+    destruct (Req_dec 0 r0).
+    - contradict neq_0; subst; auto.
+    - subst. rewrite Rmax_right.
+      + apply Rabs_pos_lt; auto. 
+      + rewrite Rabs_R0; apply Rabs_pos.
+    - subst. rewrite Rmax_left.
+      + apply Rabs_pos_lt; auto. 
+      + rewrite Rabs_R0; apply Rabs_pos.
+    - apply (@Rmax_case (Rabs r) (Rabs r0) (fun q => 0 < q));
+        apply Rabs_pos_lt; auto.
+  }
+  pose del := (mkposreal _ zb).
+  have ball_neq_0: forall y, ball z del y -> y.1 * y.1 + y.2 * y.2 <> 0. {
+    move => y ybd H.
+    move: H.
+    copy => /Rplus_sqr_eq_0_l y1. 
+    rewrite Rplus_comm.
+    move => /Rplus_sqr_eq_0_l y2.
+    have: y = (0,0); first by rewrite [LHS]surjective_pairing y1 y2.
+    move => ?; subst.
+    move: ybd.
+    unfold_alg.
+    SearchAbout Rmax.
+    destruct (Rlt_dec (Rabs z.1) (Rabs z.2)).
+    - rewrite ?Rmax_right; last by left; auto.
+      rewrite ?Rplus_0_l ?Rabs_Ropp; lra.
+    - rewrite ?Rmax_left; last by lra .
+      rewrite ?Rplus_0_l ?Rabs_Ropp; lra.
+  }
+  have ball_pows_0: forall y, ball z del y -> 
+       ( 0 < y.1 ^ 4 + 2 * y.1 ^ 2 * y.2 ^ 2 + y.2 ^ 4)%R . {
+    move => y zbd.
+    set p := (x in _ < x).
+    replace p with ((y.1 * y.1 + y.2 * y.2)^2); last by
+      rewrite /p; lra. 
+    apply pow2_gt_0.
+    apply ball_neq_0.
+    auto.
+  }
+  apply: CauchyRieman_Hard; simpl. 
+  1:{ rewrite /LocallyPartials. repeat split;
+    ( exists del => y yb;
+      simpl in *;
+      auto_derive; 
+      rewrite ?Rmult_0_l ?Rminus_0_l ?Rmult_1_l 
+              ?Rmult_1_r ?Rminus_0_r ?Rplus_0_r //=;
+      repeat split; try by apply: ball_neq_0);
+      field_simplify_eq; auto; repeat split;
+      try by apply: ball_neq_0.
+    + apply: Rlt_0_neq_0. field_simplify. apply ball_pows_0; auto.
+    + apply: Rlt_0_neq_0. field_simplify. apply ball_pows_0; auto.
+  }
+  1,2: simpl; field_simplify_eq; auto;
+    split;
+    [ (apply: Rlt_0_neq_0; field_simplify);
+      apply ball_pows_0; apply ball_center
+    |  apply: ball_neq_0; apply ball_center
+    ].
+  all: repeat auto_continuous_aux;
+    apply continuous_comp; repeat auto_continuous_aux;
+    apply: ex_derive_continuous; auto_derive;
+    try (now apply ball_neq_0; apply ball_center);
+    try (now apply: Rlt_0_neq_0; field_simplify; apply ball_pows_0;
+             apply ball_center).
+Qed.
+
+Open Scope C.
 
 Lemma integral_div_z: forall a r, 
   CInt (g:= circC a r) (fun z => 1/(z-a)) = 2 * PI * Ci.
@@ -498,18 +608,71 @@ Proof.
   apply: div_z_continuous_contour.
 Qed.
 
-Lemma squeeze: forall x,
-   (forall (eps: posreal), Cmod x < eps) -> x = 0.
+Lemma squeeze: forall {K: AbsRing} {T: NormedModule K} (x:T),
+   (forall (eps: posreal), norm x < eps) -> x = zero.
 Proof.
-  move => x sqz.
-  destruct (Rle_dec 0 (Cmod x)).
+  move => ? ? x sqz.
+  destruct (Rle_dec 0 (norm x)).
   destruct r. 
   - move: sqz => /(_ (mkposreal _ H)) Q.
     simpl in *.
     lra.
-  - apply Cmod_eq_0; auto.
+  - apply norm_eq_zero; auto.
   - contradict n. 
-    apply Cmod_ge_0.
+    apply norm_ge_0.
+Qed.
+
+Lemma CInt_abs_bound: forall f g M, 
+  cts_on_contour f g -> 
+  (forall t, l_end g <= t <= r_end g -> abs (f (gamma g t)) <= M) ->
+  norm (CInt (g:=g) f) <= scal M (RInt (fun t => norm (gamma' g t)) (l_end g) (r_end g)).
+Proof.
+  move => f g M cts fbd.
+  rewrite /CInt.
+  apply: norm_RInt_le.
+  3: apply: RInt_correct; apply/ ex_CInt_RInt; apply/ cts_CInt; auto.
+  1: left; apply: endpoint_interval.
+  2: { 
+     rewrite -RInt_scal.
+     instantiate(1:= fun x => scal M (norm (gamma' g x))).
+     apply: RInt_correct. 
+     all: apply ex_RInt_continuous => t tbd.
+     rewrite Rmin_left in tbd.
+     rewrite Rmax_right in tbd.
+     2,3: left; by apply endpoint_interval.
+     1: apply: continuous_scal; first by auto_continuous_aux.
+     all: apply continuous_comp.
+     1,3: apply cts_derive; auto.
+     rewrite Rmin_left in tbd.
+     rewrite Rmax_right in tbd.
+     2,3: left; by apply endpoint_interval.
+     by auto.
+     all: apply filterlim_norm.
+  }
+  move => t tbd.
+  simpl.
+  set p := norm _.
+  `Begin Rle p. { rewrite /p.
+
+  | {( norm( scal (f (gamma g t)) (gamma' g t)) )}   unfold_alg.
+
+  | {( (abs (f (gamma g t)) * norm _) )%R}  apply: norm_scal.
+
+  | {( (M * norm _) )%R}  idtac.
+    apply: Rmult_le_compat_r; first (by apply: norm_ge_0).
+    by apply: fbd.
+  `Done.
+  }
+  unfold_alg.
+Qed.
+
+Program Definition pos_div_2PI (r: posreal): posreal := 
+  mkposreal (r / (2 * PI))%R _.
+Obligation 1.
+Proof.
+  apply: RIneq.Rdiv_lt_0_compat.
+  - apply: cond_pos.
+  - have ?:= PI_RGT_0; lra.
 Qed.
 
 Lemma cauchy_integral_aux: forall f (r r': posreal) a, 
@@ -519,7 +682,7 @@ Lemma cauchy_integral_aux: forall f (r r': posreal) a,
   = zero.
 Proof.
   move => f r r' a rbd holo.
-  apply squeeze => eps.
+  apply: squeeze => eps.
   have: continuous f a. {
     eapply filterlim_filter_le_1.
     2: apply: ex_derive_continuous. 
@@ -528,4 +691,12 @@ Proof.
     exists (f' a).
     apply H.
   }
-  move => /filterlim_locally /(_ (pos_div_2 eps)) [del h].
+  move => /filterlim_locally /(_ (pos_div_2PI eps)) [del h].
+  set p := norm _.
+
+  `Begin Rle p. {rewrite /p.
+  
+  | {( norm (CInt (g:= circC a (pos_div_2 del)) _ ))} apply_.
+    {(  scal (eps/(r' * 2*PI)) _ )%R} apply: CInt_abs_bound .
+  
+  }
