@@ -45,6 +45,51 @@ Tactic Notation
   "`Done" :=
    (auto using reflexivity).
 
+
+Lemma Cmod_prod_norm: forall x1 x2,
+  Cmod (x1,x2) = prod_norm (K:= R_AbsRing) (x1,x2).
+Proof.
+  move => x y.
+  rewrite /Cmod //= /prod_norm //= /norm //= /abs //=.
+  f_equal.
+  field_simplify.
+  rewrite ? pow2_abs.
+  auto.
+Qed.
+Ltac unfold_alg := do ! rewrite 
+  /norm //= -?Cmod_prod_norm //= 
+  /minus //= /plus //= /opp //= /scal //=
+  /mult //= /abs //= /prod_ball /AbsRing_ball //= /ball //= 
+  /prod_plus //= /prod_opp //=
+.
+Lemma R_opp_1: forall x, (-(1) * x) = -x.
+Proof. move => x. field_simplify_eq. auto. Qed.
+
+Ltac simplify_R p := 
+  let H := fresh in 
+  (have H: (p=p) by auto);
+  rewrite {1}/p in H;
+  field_simplify in H;
+  rewrite -{}H {p}
+.
+Ltac split_as_R2 e p := 
+  let H := fresh in 
+  let H' := fresh in 
+  case e: p;
+  rewrite /p /Cmult /Copp /Cplus //= in e;
+  case: e => H H';
+  rewrite -{}H -{}H' {p}
+.
+Ltac simplify_as_R2 e p := 
+  let H := fresh in 
+  let H' := fresh in 
+  case e: p;
+  rewrite /p /Cmult /Copp /Cplus //= in e;
+  case: e => H H';
+  field_simplify in H;
+  field_simplify in H';
+  rewrite -{}H -{}H' {p}
+.
 Lemma sqrt_lt_left : forall x y, 0 <= x -> 0 <= y -> sqrt x < y <-> x < y^2.
 Proof.
   move => x y xge yge; split; move => H.
@@ -120,6 +165,23 @@ Proof.
   - rewrite -Rsqr_pow2; apply Rle_0_sqr.
 Qed.
 
+
+Ltac elim_norms := do !
+  match goal with 
+  | |- context[Cmod] => rewrite !/Cmod
+  | |- sqrt _ = sqrt _ => f_equal
+  | |- (?x * _ = ?x * _)%R => f_equal
+  | |- (?x + _ = ?x + _)%R => f_equal
+  | |- (?x * _ = ?x * _)%C => f_equal
+  | |- (?x + _ = ?x + _)%C => f_equal
+  | |- sqrt _ = _ => apply sqrt_lem_1
+  | |- sqrt _ < sqrt _ => apply sqrt_lt_1
+  | |- Rabs _ <= Rabs _ => apply Rsqr_eq_abs_0
+  | |- 0 <= Rabs _ => by apply Rabs_pos
+  | |- 0 <= ?x^2 - 2 * ?x * ?y + ?y ^2 => apply diff_sqr
+  | _ => rewrite ? (sqrt_le_left, abs_sqr, sqrt_Rsqr, sqrt_square, sqrt_pow2, Rsqr_abs);
+         (simpl; field_simplify)
+end.
 Ltac auto_derive_all_aux := 
   first [progress eauto with derive_compute | auto_derive]; 
   lra.

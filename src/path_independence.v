@@ -1002,58 +1002,6 @@ Lemma path_independence_part_4_real:
       + simpl. lra.
   Qed.
 
-Lemma continous_C_AbsRing: forall U f z, 
-  
-  @continuous U (AbsRing_UniformSpace C_AbsRing) f z <-> 
-  @continuous U C_UniformSpace f z.
-Proof.
-  move => f z; rewrite /continuous; split =>C;
-  (apply: filterlim_filter_le_2;
-  [ move => P; apply prod_c_topology_eq
-  | apply C
-  ]).
-Qed.
-
-Lemma continous_C_NormedModule: forall U f z, 
-  
-  @continuous U (AbsRing_UniformSpace C_AbsRing) f z <-> 
-  @continuous U C_NormedModule f z.
-Proof.
-  move => f z; rewrite /continuous; split =>C;
-  (apply: filterlim_filter_le_2;
-  [ move => P; apply prod_c_topology_eq
-  | apply C
-  ]).
-Qed.
-Lemma continous_R_Complete: forall f z, 
-  
-  @continuous R_UniformSpace R_UniformSpace f z <-> 
-  @continuous R_UniformSpace 
-    (CompleteNormedModule.UniformSpace R_AbsRing R_CompleteNormedModule)
- f z.
-Proof.
-  move => f z; rewrite /continuous; split =>C; apply: filterlim_filter_le_2.
-  - instantiate (1:= @locally _ (f z)) => P.
-    apply: filter_imp; auto.
-  - auto.
-  - instantiate (1:= @locally _  (f z)) => P.
-    apply: filter_imp; auto.
-  - auto.
-Qed.
-
-Lemma ex_RInt_prod: forall f a b,
-  @ex_RInt C_R_CompleteNormedModule f a b <->
-  @ex_RInt (prod_NormedModule R_AbsRing R_NormedModule R_NormedModule) f a b.
-Proof.
-  move => f a b; split; move=> [l H]; exists l.
-  - apply: filterlim_filter_le_2; first (by 
-      (instantiate (1:= @locally _ l) => P)).
-    exact H.
-  - apply: filterlim_filter_le_2; first (by 
-      (instantiate (1:= @locally _ l) => P)).
-    exact H.
-Qed.
-
 Lemma integrand_cts:
   forall (a b a' b' c d c' d' :R) (f f' : C -> C) (g1 g2: R -> R -> R),
   let g := fun r t => (g1 r t, g2 r t) in
