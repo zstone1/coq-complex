@@ -26,12 +26,6 @@ rewrite /scal //=.
 apply mult_one_r.
 Qed.
 
-Ltac nrapp := 
-  match goal with 
-  | |- context [Rabs ?y] => pose proof (Rabs_pos y)
-  end.
-Open Scope C.
-
 Lemma is_filter_lim_locally: forall {T:UniformSpace} (z:T),
   is_filter_lim (locally z) z.
 Proof.
@@ -39,175 +33,186 @@ Proof.
 Qed.
   
 
+Lemma Cmod_Rabs_imaginary: forall (x y:R), 
+  Rabs y <= Cmod (x,y).
+Proof.
+  move => x y.
+  apply: transitivity; last by apply sqrt_plus_sqr.
+  simpl.
+  apply Rmax_r.
+Qed.
 
-  Lemma diff_topology_equiv: forall f z v,
-    is_derive (K:=C_AbsRing) (V:= AbsRing_NormedModule C_AbsRing) f z v <->
-    is_derive (K:=C_AbsRing) (V:= C_NormedModule) f z v.
-  Proof.
-    move => f z v.
-    rewrite /is_derive /filterdiff //= /Equiv.is_domin.
-    do 2 split.
-    1,3: apply is_linear_scal_l.
-    all: destruct H; auto.
-  Qed.
+  
+Definition Holo (f g: C -> C) z := 
+  is_derive (K:=C_AbsRing) (V:= C_NormedModule) f z (g z).
 
-  Lemma is_derive_scal_C: forall z k,
-    is_derive (K:=C_AbsRing) (fun q => scal k q) z k.
-  Proof.
-    move => z k. 
-    rewrite /is_derive.
-    under ext_filterdiff_glo => x.
-      rewrite /scal //= /mult //= Cmult_comm.
-    over.
-    apply filterdiff_linear . 
-    apply is_linear_scal_l.
-  Qed.
+Definition is_Holo (f: C -> C) z := 
+  exists g, Holo f g z.
+
+(** A stupid issue with the existing proof in Coquelicot.
+they prove Derives = _, but that's not strong enough.
+So I copy pasted the entire proof, minus one rewrite at the beginning*)
+Lemma differentiable_pt_lim_is_derive (f : R -> R -> R) (x y : R) (lx ly : R) :
+  differentiable_pt_lim f x y lx ly
+    -> is_derive (fun x => f x y) x lx /\ is_derive (fun y => f x y) y ly.
+Proof.
+  move => Df ; split ; apply is_derive_Reals => e He ;
+  case: (Df (pos_div_2 (mkposreal e He))) => {Df} delta /= Df ;
+  exists delta => h Hh0 Hh.
+
+
+  replace ((f (x + h) y - f x y) / h - lx)
+    with ((f (x+h) y - f x y - (lx * ((x+h) - x) + ly * (y - y))) / h)
+    by (by field).
+  rewrite Rabs_div.
+  apply Rlt_div_l.
+  by apply Rabs_pos_lt.
+  apply Rle_lt_trans with (e / 2 * Rmax (Rabs (x + h - x)) (Rabs (y - y))).
+  apply (Df (x+h) y).
+  by (ring_simplify (x + h - x)).
+  rewrite Rminus_eq_0 Rabs_R0 ; by apply delta.
+  ring_simplify (x + h - x).
+  rewrite Rmax_left.
+  apply Rmult_lt_compat_r.
+  by apply Rabs_pos_lt.
+  lra.
+  rewrite Rminus_eq_0 Rabs_R0 ; by apply Rabs_pos.
+  by [].
+
+  replace ((f x (y + h) - f x y) / h - ly)
+    with ((f x (y + h) - f x y - (lx * (x - x) + ly * ((y + h) - y))) / h)
+    by (by field).
+  rewrite Rabs_div.
+  apply Rlt_div_l.
+  by apply Rabs_pos_lt.
+  apply Rle_lt_trans with (e / 2 * Rmax (Rabs (x - x)) (Rabs (y + h - y))).
+  apply (Df x (y + h)).
+  rewrite Rminus_eq_0 Rabs_R0 ; by apply delta.
+  by (ring_simplify (y + h - y)).
+  ring_simplify (y + h - y).
+  rewrite Rmax_right.
+  apply Rmult_lt_compat_r.
+  by apply Rabs_pos_lt.
+  lra.
+  rewrite Rminus_eq_0 Rabs_R0 ; by apply Rabs_pos.
+  by [].
+Qed.
+
+Lemma differentiable_pt_lim_left (f : R -> R -> R) (x y : R) (lx ly : R) :
+  differentiable_pt_lim f x y lx ly
+    -> ex_derive (fun x => f x y) x.
+Proof.
+  move => df.
+  have := (differentiable_pt_lim_is_derive df).
+  case => H _.
+  exists lx; auto.
+Qed.
+
+Lemma differentiable_pt_lim_right (f : R -> R -> R) (x y : R) (lx ly : R) :
+  differentiable_pt_lim f x y lx ly
+    -> ex_derive (fun y => f x y) y.
+Proof.
+  move => df.
+  have := (differentiable_pt_lim_is_derive df).
+  case => _ H.
+  exists ly; auto.
+Qed.
+
+Lemma holo_differentiable_pt_lim_imaginary: forall (f:C -> C) x y g,
+  Holo f g (x,y) -> 
+  differentiable_pt_lim (fun x y => (f (x,y)).2) x y (g (x,y)).2 (g (x,y)).1 .
+Proof.
+  move => f x y g.
+  rewrite /is_derive /filterdiff.
+  move => [_ /(_ (x,y))] .
+  move => /(_ (@is_filter_lim_locally (AbsRing_UniformSpace C_AbsRing) (x,y) )).
+  move => + eps.
+  have erpos : ( 0 < eps /(sqrt 2)) by apply Rdiv_lt_0_compat;
+    [apply (cond_pos eps) | apply Rlt_sqrt2_0 ]. 
+  pose epsr2 := mkposreal (eps/ (sqrt 2)) erpos .
+  move => /(_ epsr2) /prod_c_topology_eq [del H].
+  exists del => u v uball vball.
+  move :H => /(_ (u,v)).
+  unfold_alg; rewrite /AbsRing_ball. unfold_alg .
+  have Q: (Rabs (u-x) < del /\ Rabs (v-y) < del) by auto.
+  move => /(_ Q) {Q}.
+  set p := (x in Cmod x <= _).
+  simplify_as_R2 e p.
+  set p := (x in Cmod (x,_)).
+  set q := (x in Cmod (_,x)).
+  set l := (x in Rabs x).
+  set dz := ((u,v) + _)%C.
+  simplify_as_R2 e dz.
+  have ->: (l = q) by rewrite /l /q; field_simplify_eq.
+  move => H.
+  apply: Rle_trans.
+  apply: Cmod_Rabs_imaginary p _.
+  apply: Rle_trans.
+  apply H.
+  apply (Rle_trans _ (eps * Rmax (Rabs (u-x)) (Rabs (v-y)))); last by reflexivity.
+  rewrite /Rdiv.
+  rewrite Rmult_assoc.
+  apply Rmult_le_compat_l; first by left; apply: cond_pos.
+  field_simplify .
+  apply/ Rle_div_l; first by apply Rlt_sqrt2_0.
+  rewrite Rmult_comm.
+  apply Cmod_2Rmax.
+  apply Rsqr_gt_0_0.
+  rewrite Rsqr_sqrt; lra.
+Qed.
+
+Lemma holo_differentiable_pt_lim_real: forall (f:C -> C) x y g,
+  Holo f g (x,y) -> 
+  differentiable_pt_lim (fun x y => (f (x,y)).1) x y (g (x,y)).1 (-g (x,y))%C.2 .
+Proof.
+  Open Scope C.
+  move => f x y g.
+  move => /(filterdiff_scal_r_fct Ci ). 
+  have H := Cmult_comm.
+  move /(_ H).
+  under ext_filterdiff_d => t.
+    rewrite scal_assoc.
+    have ->: (mult Ci t = mult t Ci) by unfold_alg.
+    rewrite -scal_assoc.
+  over.
+  simpl.
+  rewrite -/(is_derive _ _ _).
+  rewrite -/(Holo _ (fun z => scal Ci (g z) ) _).
+  move /holo_differentiable_pt_lim_imaginary.
+  simpl in *.
+  set p := (x in differentiable_pt_lim _ _ _ x _).
+  simplify_R p.
+  set p := (x in differentiable_pt_lim _ _ _ _ x).
+  simplify_R p.
+  eapply differentiable_pt_lim_ext.
+  exists pos_half => u v _ _ . field_simplify_eq; auto.
+Qed.
+
+
+Lemma is_derive_scal_C: forall z k,
+  is_derive (K:=C_AbsRing) (fun q => scal k q) z k.
+Proof.
+  move => z k. 
+  rewrite /is_derive.
+  under ext_filterdiff_glo => x.
+    rewrite /scal //= /mult //= Cmult_comm.
+  over.
+  apply filterdiff_linear . 
+  apply is_linear_scal_l.
+Qed.
 
 
 Ltac copy := 
   let h := fresh in 
   let j := fresh in
    move => h; pose proof h as j; move: h j.
+
 Section Holo.
+
   Definition CauchyRiemann (udx udy vdx vdy: C -> R) z:=
     udx z = vdy z /\ 
     udy z = (- vdx z)%R
-    .
-  
-  Definition Holo (f g: C -> C) z := 
-    is_derive (K:=C_AbsRing) (V:= C_NormedModule) f z (g z).
-
-  Definition is_Holo (f: C -> C) z := 
-    exists g, Holo f g z.
-
-
-  Lemma local_c_reals:
-    forall (z:C) P,
-      (within (fun q => q.2 = z.2) (locally (T:=C_UniformSpace) z)) P ->
-      (locally (T:= R_UniformSpace) z.1 (fun q => (P (q,z.2)))).
-  Proof.
-    move => z P lz //=.
-    case lz => eps clim.
-    exists eps => y byz.
-    apply clim; last by simpl; auto.
-    unfold_alg.
-    auto using AbsRing_ball_center.
-  Qed.
-
-  Lemma local_c_imags:
-    forall (z:C) P,
-        (within (fun q => q.1 = z.1) (locally (T:=C_UniformSpace) z)) P ->
-        (locally (T:= R_UniformSpace) z.2 (fun q => (P (z.1,q)))).
-  Proof.
-    move => z P.
-    pose h (z:C) := (z.2,z.1) .
-    auto_continuous h (z.2, z.1) => H {} /H ?.
-    apply (local_c_reals (z:=(z.2, _)) (P:= fun q => _ (q.2, q.1))).
-    auto.
-  Qed.
-
-  Hint View for move /is_filter_lim_locally_unique.
-
-  Hint Rewrite prod_c_topology_eq.
-  Lemma c_diff_imaginary_axis: forall 
-    (f: C -> C) (z:C) (v:C) ,
-    is_derive (K:=C_AbsRing) f z v ->
-    is_derive (fun q => f (z.1, q)) z.2 ((-v.2,v.1)%R).
-  Proof.
-    rewrite /is_derive /filterdiff => f z v.
-    case => _ //= /(_ z) b. split;
-    first by apply (is_linear_scal_l (K:=R_AbsRing) ((-v.2,v.1)%R)).
-    move => o /is_filter_lim_locally_unique <-.
-    rewrite /Equiv.is_domin //=  in b * => eps.
-    pose r_normeq := 
-      fun z' => norm (K:=R_AbsRing)
-          (minus (minus (f (z'.1, z'.2)) (f (z.1, z.2))) 
-                 (scal (minus z'.2 z.2) ((-v.2,v.1)%R))) <=
-        eps * norm (minus z'.2 z.2) .
-    under ext_filter => p do rewrite -/(r_normeq (z.1, p)).
-    apply local_c_imags.
-    set c_normeq := fun x: C =>
-      norm  (minus (minus (f x) (f z)) (scal (minus x z) v)) <=
-       eps * norm (minus x z) in b.
-
-    pose h := fun q:C => (z.1,q.2).
-    auto_continuous h z => hcts.
-    rewrite /within; 
-    apply: (filter_imp (fun q => c_normeq (h q))).
-    - case => q1 q2; simpl => + ->.
-      rewrite /c_normeq /r_normeq /h //=.
-      case eq: z.
-      (have H : 
-        (forall a b c d, a = b -> c = d -> a <= c -> b <= d) 
-        by congruence).
-      apply H;
-      (unfold_alg;
-      by elim_norms).
-    - auto_continuous h z.
-      apply. 
-      rewrite -surjective_pairing prod_c_topology_eq.
-      apply b.
-      rewrite //=.
-  Qed.
-
-  Lemma c_diff_real_axis: forall 
-    (f: C -> C) (z:C) (v:C) ,
-    is_derive (K:=C_AbsRing) f z v ->
-    is_derive (fun q => f (q,z.2)) z.1 (v.1,v.2).
-  Proof.
-    move => f z v.
-    pose h := fun z => scal Ci z.
-    have {1}->: (z = -Ci * (Ci * z) ) by
-      set p := (X in _ = X);
-      simplify_as_R2 e p;
-      rewrite -surjective_pairing.
-    move /(is_derive_comp _ _) 
-         /(_ (is_derive_scal_C _ _))
-         /c_diff_imaginary_axis.
-    rewrite //=. 
-    under ext_is_derive_glo => x.
-      set p := (X in f X).
-      simplify_as_R2 e p.
-    over.
-    set p := (X in is_derive _ _ X).
-    simplify_as_R2 e p.
-    set p := (X in is_derive _ X).
-    simplify_R e p.
-    auto.
-  Qed.
-
-  Lemma diff_split_coords: forall 
-    {K: AbsRing}
-    {V1 V2: NormedModule K} 
-    (u: K -> V1)
-    (v: K -> V2) x u' v', 
-    is_derive (K:= K) (fun t => (u t, v t)) x (u', v') -> 
-    is_derive (K:= K) u x u' /\
-    is_derive (K:= K) v x v'
-    .
-  Proof.
-    move => K V1 V2 u v x u' v' diff; split;
-    [ apply (filterdiff_comp _ fst _ fst) in diff; simpl in *
-    | apply (filterdiff_comp _ snd _ snd) in diff; simpl in *
-    ];
-    [auto | apply filterdiff_fst | auto | apply filterdiff_snd].
-  Qed.
-  Locate Copp.
-  Lemma holo_partials: forall u v g1 g2 z, 
-    Holo (fun q => (u q, v q)) (fun q => (g1 q, g2 q)) z -> 
-    ex_derive (fun t => u (t,z.2)) z.1 /\
-    ex_derive (fun t => u (z.1,t)) z.2 /\
-    ex_derive (fun t => v (t,z.2)) z.1 /\
-    ex_derive (fun t => v (z.1,t)) z.2
   .
-  Proof.
-    move => u v g1 g2 z H.
-    split; [ | split]; [ | | split]; eexists;
-    move: H .
-    1,3: move => /c_diff_real_axis.
-    3,4: move => /c_diff_imaginary_axis.
-    all: move => /is_derive_pair_iff; simpl; case; eauto.
-  Qed.
 
   Theorem CauchyRiemann_Easy: forall u v g1 g2 z,
     Holo (fun p => (u p, v p)) (fun p => (g1 p, g2 p)) z ->
@@ -218,19 +223,14 @@ Section Holo.
     .
   Proof.
     move => u v g1 g2 z.
+    rewrite [x in Holo _ _ x]surjective_pairing.
     copy.
-    case /c_diff_imaginary_axis /diff_split_coords .
-    move /is_derive_unique => + /is_derive_unique => h1 h2.
+    move => /holo_differentiable_pt_lim_imaginary /differentiable_pt_lim_is_derive [+ +]
+            /holo_differentiable_pt_lim_real /differentiable_pt_lim_is_derive [+ +].
+    do 4 move => /is_derive_unique ->. 
+    rewrite -?surjective_pairing; auto.
     
-    case /c_diff_real_axis /diff_split_coords .
-    move /is_derive_unique => + /is_derive_unique => h3 h4.
-    move: h1 h2 h3 h4.
-    by repeat move ->.
   Qed.
-  Notation "[| x |]" := (norm x) (at level 100).
-  Infix "[+]" := plus (at level 199).
-  Infix "[-]" := minus (at level 199).
-  Infix "[.]" := scal (at level 10).
 
   Lemma Rabs_lt_between_min_max: 
      forall x y z : R, Rmin x y < z < Rmax x y -> Rabs (z - y) < Rabs (x - y).
@@ -319,7 +319,7 @@ Section Holo.
       split.
       + rewrite -!/(Rminus _ _) in bds H1 H2 *. 
         apply: (Rle_lt_trans _ _ _ bds); auto.
-      + set p := (x in Rabs x). simplify_R e p.
+      + set p := (x in Rabs x). simplify_R p.
         rewrite Rabs_R0; apply cond_pos.
     }
     {
@@ -337,7 +337,7 @@ Section Holo.
         case: H => H1 H2 //=.
         simpl in *; split.
         + rewrite -!/(Rminus _ _) in bds H1 H2 *; auto.
-        + set p := (x in Rabs x). simplify_R e p.
+        + set p := (x in Rabs x). simplify_R p.
           apply: (Rle_lt_trans _ _ _ bds); auto.
     }
     {
@@ -406,15 +406,6 @@ Section Holo.
     simpl.
     apply Rmax_l.
   Qed.
-
-  Lemma Cmod_Rabs_imaginary: forall (x y:R), 
-    Rabs y <= Cmod (x,y).
-  Proof.
-    move => x y.
-    apply: transitivity; last by apply sqrt_plus_sqr.
-    simpl.
-    apply Rmax_r.
-  Qed.
   
   Definition LocallyPartials (u v udx udy vdx vdy: C -> R)  z := 
     locally z ( fun q =>
@@ -471,7 +462,7 @@ Section Holo.
     move => cr_eqs cts.
     
     exists del => a aballz .
-    set p := (x in norm (x [-] _ ) ).
+    set p := (x in norm (minus x _ ) ).
     simplify_as_R2 e p.
     move => [c1 [c2 [c1_bd [c2_bd -> ]]]].
     move => [c3 [c4 [c3_bd [c4_bd -> ]]]].
@@ -480,10 +471,10 @@ Section Holo.
     rewrite /ball //= /prod_ball //= /ball //= /AbsRing_ball /abs //= 
     /minus //= /opp /plus //= -2!/(Rminus _ _) in aballz.
     case: aballz => dx_del dy_del.
-    set p := (x in norm (x [-] _ ) ).
+    set p := (x in norm (minus x _ ) ).
     set dx := (a.1 - z.1) in p c1_bd c3_bd dx_del *.
     set dy := (a.2 - z.2) in p c2_bd c4_bd dy_del *.
-    set dz := a [-] z in p *.
+    set dz := minus a z in p *.
     `Begin eq p. { rewrite /p.
   
     | {( ((udx z*dx + udy z*dy + (udx (c3,z.2) - udx z) *dx + 

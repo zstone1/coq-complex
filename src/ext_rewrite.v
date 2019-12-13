@@ -9,6 +9,9 @@ Unset Strict Implicit.
 Unset Printing Implicit Defensive.
 Set Bullet Behavior "Strict Subproofs".
 
+(* rewriting some of the extentionality lemmas from 
+coquelicot to be usable with the new under tactic.
+*)
 
 Lemma global_local {A: UniformSpace} (P: A -> Prop):
   (forall x, P x) -> (forall x, locally x P).
