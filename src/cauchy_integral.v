@@ -647,7 +647,6 @@ Proof.
   apply Cmod_eq_0.
   have: (Cmod z * Cmod z = 0)%R.
   2: by nra.
-  SearchAbout Cmod.
   rewrite -Cmod_mult -Cmod_0.
   by f_equal.
 Qed.
@@ -1257,3 +1256,4 @@ Proof.
    have:= PI_RGT_0.
    lra.
 Qed.
+End CauchyIntegral.

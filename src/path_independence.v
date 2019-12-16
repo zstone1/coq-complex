@@ -12,7 +12,7 @@ Set Bullet Behavior "Strict Subproofs".
 
 
 Require Import domains cauchy_riemann real_helpers.
-e
+
 Open Scope program_scope.
 Open Scope general_if_scope.
 Require Import domains ext_rewrite real_helpers.
@@ -446,8 +446,9 @@ Proof.
   repeat diff_help; auto.
 Qed.
 
+ 
 Section DeriveHomotopy .
-  Variables (u v u' v': R -> R -> R) (a' b' a b :R).
+  Variables (u v u' v': R -> R -> R) (a b :R).
   Variables (g1 g2 : R -> R -> R ).
 
   Definition g:= fun p q => (g1 p q, g2 p q).
@@ -455,54 +456,35 @@ Section DeriveHomotopy .
   Definition f':= fun z => (u' z.1 z.2, v' z.1 z.2).
   Definition g_t := fun p q => (Derive (g1 p) q, Derive (g2 p) q).
   Definition g_r := fun p q => (Derive (g1 ^~ q) p, Derive (g2 ^~ q) p).
-  Hypothesis a'bd: (Rmin a b < a' < Rmax a b).
-  Hypothesis b'bd: (Rmin a b < b' < Rmax a b).
-
-  Lemma inside: forall t, Rmin a' b' <= t <= Rmax a' b' -> Rmin a b < t < Rmax a b.
-  Proof.
-    split.
-    - apply: (@Rlt_le_trans _ (Rmin a' b') t). 
-      apply: Rmin_glb_lt; [apply a'bd | apply b'bd].
-      apply H.
-    - apply: (@Rle_lt_trans _ (Rmax a' b') _). 
-      apply H.
-      apply: Rmax_lub_lt; [apply a'bd | apply b'bd].
-  Qed.
-
-  Lemma inside': forall t, Rmin a b < t < Rmax a b -> 
-    0 < Rmin (Rabs(t-a)) (Rabs(t-b)).
-  Proof.
-    move => t tbd.
-      apply Rmin_glb_lt; apply Rabs_pos_lt;
-      eapply Rminus_eq_contra; move => ?; subst;
-      destruct (Rle_dec a b);
-      try (rewrite Rmin_left in tbd; auto; lra);
-      try (rewrite Rmax_left in tbd; auto; lra);
-      try (rewrite Rmax_right in tbd; auto; lra);
-      try (rewrite Rmin_right in tbd; auto; lra).
-  Qed.
-
-  Lemma inside'': forall t, Rmin a' b' <= t <= Rmax a' b' -> Rmin a b <= t <= Rmax a b.
-  Proof.
-    split; left; apply inside; auto.
-  Qed.
 
   Section DeriveInterior.
   Variables (r: R).
   Hypothesis holo: 
-    locally r (fun r0 => forall t, Rmin a b < t < Rmax a b -> Holo f f' (g r0 t)).
+    locally r (fun r0 => forall t, Rmin a b <= t <= Rmax a b -> Holo f f' (g r0 t)).
   Hypothesis cts: 
-    (forall t, Rmin a b < t < Rmax a b -> continuous f' (g r t)) .
+    (forall t, Rmin a b <= t <= Rmax a b -> continuous f' (g r t)) .
   Hypothesis smooth:
-  locally r (fun r0 => forall t, Rmin a b < t < Rmax a b -> SmoothPath g1 g2 r0 t) .
+    locally r (fun r0 => forall t, Rmin a b <= t <= Rmax a b -> SmoothPath g1 g2 r0 t) .
 
-  Lemma locally_nice: locally r (fun r0 => forall t, Rmin a b < t < Rmax a b -> 
+  Lemma locally_nice: locally r (fun r0 => forall t, Rmin a b <= t <= Rmax a b -> 
     Holo f f' (g r0 t)/\ SmoothPath g1 g2 r0 t).
   Proof.
     combine_local => /(_ ltac:(apply locally_filter)) H. 
     apply: filter_imp H => r0 [H1 H2]; split;
     [apply H1 | apply H2]; auto.
   Qed.
+  Lemma inside': forall t, Rmin a b < t < Rmax a b -> 
+      0 < Rmin (Rabs(t-a)) (Rabs(t-b)).
+    Proof.
+      move => t tbd.
+        apply Rmin_glb_lt; apply Rabs_pos_lt;
+        eapply Rminus_eq_contra; move => ?; subst;
+        destruct (Rle_dec a b);
+        try (rewrite Rmin_left in tbd; auto; lra);
+        try (rewrite Rmax_left in tbd; auto; lra);
+        try (rewrite Rmax_right in tbd; auto; lra);
+        try (rewrite Rmin_right in tbd; auto; lra).
+    Qed.
   Local Ltac foo x y := 
     let smooth := fresh in 
       move => /(_ x y)[+ smooth];
@@ -512,10 +494,10 @@ Section DeriveHomotopy .
       simpl in *;
       repeat diff_help; auto.
 
-  Lemma diff_r: (locally r( fun r0 => forall t, Rmin a' b' <= t <= Rmax a' b' -> 
+  Lemma diff_r: (locally r( fun r0 => forall t, Rmin a b <= t <= Rmax a b -> 
     ex_derive (fun t0 => Re(f (g r0 t0) * g_t r0 t0)) t)).
   Proof.
-      apply: filter_imp locally_nice => r0 + t /inside tbd. foo t tbd.
+      apply: filter_imp locally_nice => r0 + t tbd. foo t tbd.
   Qed.
   Ltac auto_2d_continuous :=
     repeat (
@@ -525,17 +507,57 @@ Section DeriveHomotopy .
     try apply continuity_2d_pt_opp;
     simpl in *; auto).
 
-  Lemma D: is_derive (fun r0 => RInt (fun t0 => Re(f (g r0 t0) * g_t r0 t0 ))%C a' b') r 
-   (RInt (fun t0 => Derive (fun r0 => Re(f (g r0 t0) * g_t r0 t0 )%C) r) a' b'). 
+  Lemma D: 
+    forall h, 
+    locally r ( fun r0 => forall t, Rmin a b <= t <= Rmax a b -> 
+      Re (f (g r0 t) * g_t r0 t) = h r0 t )->
+      
+    continuity_2d_pt (fun u0 v0 : R => 
+      Derive (fun z => h z v0) u0) r a -> 
+    continuity_2d_pt (fun u0 v0 : R => 
+      Derive (fun z => h z v0) u0) r b -> 
+    is_derive (fun r0 => RInt (fun t0 => h r0 t0 )%C a b) r 
+    (RInt (fun t0 => Derive (fun r0 => h r0 t0) r) a b). 
   Proof.
-     apply is_derive_RInt_param .
-    3: apply: filter_imp diff_r => r0 D;
-       apply: ex_RInt_continuous => ??;
-       apply: ex_derive_continuous ;
-       by apply: D.
-    1: apply: filter_imp locally_nice => r0 + t /inside tbd; foo t tbd.
-  
-    move :locally_nice => [del H] t /inside  tbd.
+    move => h h_ext_f  ctsA ctsB.
+    apply is_derive_RInt_param .
+    3: {
+      move: diff_r => H1.
+      have:= filter_and _ _ H1 h_ext_f.
+      move => /(_ ltac:(apply locally_filter)) H. 
+      apply: filter_imp H => r0 [D ext].
+      apply: ex_RInt_ext; last by 
+
+        apply: ex_RInt_continuous => ??;
+        apply: ex_derive_continuous ;
+        apply: D.
+      move => ? ?.
+      apply ext.
+      lra.
+    }
+    {
+      move: locally_nice => H1.
+      move: h_ext_f => /locally_locally H2.
+      have:= filter_and _ _ H1 H2.
+      move => /(_ ltac:(apply locally_filter)) H. 
+      apply: filter_imp H => r0 [D ext].
+      move => t tbd.
+      eapply ex_derive_ext_loc.
+      apply: filter_imp ext.
+      move => x H. apply H. lra.
+      move: D.
+      foo t tbd.
+    }
+    move => t [tbdL tbdR].
+    case: tbdL; case: tbdR.
+
+    2-4: rewrite /Rmax /Rmin; destruct_match;
+        try (move => -> _); 
+        try (move => _ <-); 
+        try (apply: ctsA);
+        try (apply: ctsB).
+    move :locally_nice => [del H] tbdL tbdR.
+    have ?:= cond_pos del.
     eapply continuity_2d_pt_ext_loc. {
       pose del2 := (Rmin del (Rmin (Rabs(t-a)) (Rabs(t-b)))).
       have del2ge: 0 < del2 by
@@ -547,7 +569,7 @@ Section DeriveHomotopy .
       have {}t'bd: (Rmin a b < t' < Rmax a b) 
         by apply: (inside_internal (t:=t)).
       move: H; copy => H.
-      move => /(_ r' r'bd t' t'bd)  [+ _].
+      move => /(_ r' r'bd t' (ltac:(lra))) [+ _].
       copy => /holo_differentiable_pt_lim_real
               /differentiable_pt_lim_unique [Du'1 Du'2]
               /holo_differentiable_pt_lim_imaginary
@@ -571,11 +593,11 @@ Section DeriveHomotopy .
     auto_2d_continuous.
     1,3,7,9: apply continuity_2d_pt_comp.
     all: try now (
-      apply: differentiable_continuity_pt; repeat diff_help; auto;
-      apply: (differentiable_pt_comp); try diff_help; eauto).
+        apply: differentiable_continuity_pt; repeat diff_help; auto;
+        apply: (differentiable_pt_comp); try diff_help; eauto).
     
-    all: apply/continuity_2d_pt_continuous;
-      first [apply Cu' | apply Cv']; auto_continuous_aux.
+      all: apply/continuity_2d_pt_continuous;
+        first [apply Cu' | apply Cv']; auto_continuous_aux.
   Qed.
 
   Lemma path_independence_part_3_real:
