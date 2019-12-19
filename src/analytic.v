@@ -22,10 +22,21 @@ Definition Compactly_on (D: C -> Prop) f (P: (C -> C) -> Prop) : Prop :=
   forall a b c d, 
   (forall z, a <= z.1 <= b -> c <= z.2 <= d -> D z) -> 
   (exists (del:posreal), forall g,
-     (forall z, a <= z.1 <= b -> c <= z.2 <= d -> 
-     Cmod (g z - f z) < del) -> 
+     (forall z, a <= z.1 <= b -> c <= z.2 <= d -> Cmod (g z - f z) < del) -> 
+     (forall z, ~(a <= z.1 <= b -> c <= z.2 <= d ) -> f z = g z) ->
    P g
   ).
+
+Lemma sqr_dec : forall a b c d z,
+  (a <= z.1 <= b -> c <= z.2 <= d ) \/ ~(a <= z.1 <= b -> c <= z.2 <= d ).
+Proof.
+  move => a b c d z.
+  case (Rle_dec a z.1); 
+  case (Rle_dec z.1 b); 
+  case (Rle_dec c z.2); 
+  case (Rle_dec z.2 d);
+  tauto.
+Qed.
 
 Lemma Cminus_eq_0: forall z, z - z = 0.
 Proof. move => *. field_simplify_eq; auto. Qed.
@@ -66,6 +77,7 @@ Proof.
       have xge0:= cond_pos x.
       apply => *.
       rewrite Cminus_eq_0 Cmod_0 //=.
+      reflexivity.
   - move => *. exists pos_half; auto.
   - move => P Q C1 C2.
     move => a b c d sqr_in.
@@ -73,18 +85,20 @@ Proof.
     move: C2 => /(_ a b c d sqr_in) [del2 H2].
     pose del := (Rmin del1 del2).
     exists (mkposreal _ (@Rmin_stable_in_posreal del1 del2)).
-    move => g gbd.
-    split; [apply H1| apply H2] => z zbd1 zbd2;
-    apply: Rlt_le_trans. 
+    move => g gbd_in gbd_out.
+    split; [apply H1| apply H2] => z. 
+    2,4: auto.
+    1,2: move => zbd1 zbd2; apply: Rlt_le_trans. 
     2: apply Rmin_l. 
     3: apply Rmin_r.
-    all: apply gbd; eauto.
+    all: apply gbd_in; eauto.
   - move => P Q impl C.
     move => a b c d sqr_in.
     move :C  => /(_ a b c d sqr_in) [del H].
-    exists del => g gbd.
+    exists del => g gbd_in gbd_out.
     apply impl.
     apply H.
+    auto.
     auto.
 Qed.
 
@@ -101,12 +115,12 @@ Definition OnPatches (D: C -> Prop) f (P: (C -> C) -> Prop) : Prop :=
     l <> [] -> 
     (forall z, in_patch l z -> D z) ->
   (exists (del:posreal), forall g,
-     (forall z, in_patch l z -> 
-     Cmod (g z - f z) < del) -> 
+     (forall z, in_patch l z -> Cmod (g z - f z) < del) -> 
+     (forall z, ~(in_patch l z) -> f z = g z) -> 
    P g
   ).
 
-Lemma squares_implies_patches: forall D f P, 
+(* Lemma squares_implies_patches: forall D f P, 
   Compactly_on D f P -> OnPatches D f P.
 Proof.
   move => D f P com.
@@ -121,10 +135,12 @@ Proof.
       tauto.
     - move => del H. 
       exists del.
-      move => g gbd.
-      apply H => ???.
-      apply gbd.
-      rewrite /in_patch. tauto.
+      move => g gbd_in gbd_out.
+      apply H.
+      + move => ???. apply gbd_in.
+        rewrite /in_patch. tauto.
+      + move => ??. apply gbd_out; 
+        rewrite /in_patch. tauto.
   }
   move => q l H1 _ zbd.
   move :H1.
@@ -138,14 +154,16 @@ Proof.
   }
   move => del1 H1.
   exists del1 .
-  move => g gbd.
+  move => g gbd_in gbd_out.
   apply H1 => z H.
-  apply gbd.
-  right.
-  auto.
-Qed.
+  + apply gbd_in.
+    right.
+    auto.
+  + apply gbd_out.
+    rewrite /in_patch   .
+Qed. *)
 
-Lemma patches_iff_squares: forall D f P, 
+(* Lemma patches_iff_squares: forall D f P, 
   Compactly_on D f P <-> OnPatches D f P.
 Proof.
   move => D f P.
@@ -161,7 +179,7 @@ Proof.
     apply gbd;
     rewrite /in_patch in z'bd;
     tauto.
-Qed.
+Qed. *)
 
 
 Definition contour_inside (g:Contour) D:= 
@@ -176,15 +194,106 @@ Definition OnPaths (D: C -> Prop) f (P: (C -> C) -> Prop) : Prop :=
    P g
   ).
 
-
-Lemma squares_implies_paths: forall D f P, 
-  open D -> 
-  (forall z, D z \/ ~D z )->
-  Compactly_on D f P -> OnPaths D f P.
+Lemma compact_le_uniform: forall D f,
+  filter_le (Compactly_on D f) (locally f).
 Proof.
-  move => D f P openD decD /patches_iff_squares patch.
-  move => gam inD.
+  move => D f P [del loc].
+  move => a b c d sqr.
+  exists del.
+  move => g gbd_in gbd_out.
+  apply loc.
+  rewrite /ball //= /fct_ball.
+  move => z.
+  destruct (sqr_dec a b c d z) .
+  - unfold_alg. 
+    rewrite -?/(Rminus _ _).
+    apply gbd_in.
 
+  
+  
+
+Lemma uniform_limits_CInt : forall {T: UniformSpace} 
+  (D: C -> Prop)
+  F
+  (f_: T -> C -> C)
+  (flim : C -> C)
+  (gam: Contour),
+  open D ->
+  contour_inside gam D ->
+  (forall u, cts_on_contour (f_ u) gam) ->
+  ProperFilter F ->
+  filterlim f_ F (Compactly_on D flim) -> 
+  filterlim (fun u => CInt gam (f_ u)) F (locally (CInt gam flim)).
+Proof.
+  move => T D F f_ flim gam openD gam_in_D cts FF H.
+  rewrite /CInt.
+  have := @filterlim_RInt T
+          (C_R_CompleteNormedModule) 
+          (fun u t => f_ u (gamma gam t) * gamma' gam t)
+          (l_end gam)
+          (r_end gam) 
+          F
+          (ltac:(auto))
+          (fun t => flim (gamma gam t) * gamma' gam t)
+          (fun u =>  RInt (V:=C_R_CompleteNormedModule)
+                     (fun t : R => f_ u (gamma gam t) * gamma' gam t) 
+                     (l_end gam) (r_end gam)  ).
+  case. 
+  - move => u. 
+    apply RInt_correct. 
+
+    apply ex_CInt_RInt, cts_CInt; auto.
+  - Set Printing Implicit.
+    have : ( 
+          @filterlim T (R -> C_R_CompleteNormedModule)
+            (fun (u : T) (t : R) => f_ u (gamma gam t)) F
+            (@locally (fct_UniformSpace R C_R_CompleteNormedModule)
+            (fun t : R => flim (gamma gam t)))). 
+    {  
+        eapply (@filterlim_comp T (C -> C) (R -> C)
+          _ (fun h t => h(gamma gam t)) ) in H.
+        apply H.
+        apply: (@filterlim_filter_le_1 _ _ (locally flim)).
+        admit.  
+        apply/filterlim_locally => eps.
+        exists eps => y.
+        unfold_alg.
+        rewrite /fct_ball /ball //= /prod_ball .
+   }
+   admit.
+
+  - move => z [+ /is_RInt_unique ->].
+    apply.
+Admitted.
+
+  apply/ filterlim_locally => eps.
+
+  rewrite /filterlim /filter_le /filtermap in H.
+  move:H.
+  move => /(_ (fun t => 
+    ball (CInt gam flim) eps (CInt gam t ))).
+  apply.
+  move => 
+  eexists ?[del].
+  move => g gbd.
+  rewrite (@lock _ CInt).
+  unfold_alg.
+  rewrite -lock.
+  Check ().
+
+
+
+
+
+  True.
+  wlog ext : f_ flim H cts / 
+    (forall z, ~( exists t, l_end gam <= t <= r_end gam  -> z = gamma gam t)
+                   -> forall u, f_ u z = flim z).
+  admit.
+
+  (* need to pull back open balls from C to R.
+     Should be able to use open_comp to get this*)
+(* 
   pose delta := (fun t => 
       match Rlt_dec t (l_end g) with 
       | left _ => pos_div_2
@@ -251,37 +360,4 @@ Lemma NNPP : forall p:Prop, ~ ~ p -> p.
 Proof.
 unfold not in |- *; intros; elim (classic p); auto.
 intro NP; elim (H NP).
-Qed.
-
-Lemma uniform_limits_CInt : forall {T: UniformSpace} 
-  (D: C -> Prop)
-  F
-  (f_: T -> C -> C)
-  (flim : C -> C)
-  (gam: Contour),
-  open D ->
-  contour_in gam D ->
-  Filter F ->
-  filterlim f_ F (Compactly_on D flim) -> 
-  filterlim (fun u => CInt gam (f_ u)) F (locally (CInt gam flim)).
-Proof.
-  move => T D F f_ flim gam openD gam_in_D ? H.
-  apply/ filterlim_locally => eps.
-
-  rewrite /filterlim /filter_le /filtermap in H.
-  move:H.
-  move => /(_ (fun t => 
-    ball (CInt gam flim) eps (CInt gam t ))).
-  apply.
-  move => a b c d sqr_in.
-  eexists ?[del].
-  move => g gbd.
-  rewrite (@lock _ CInt).
-  unfold_alg.
-  Check ().
-
-
-
-
-
-  True.
+Qed. *)
