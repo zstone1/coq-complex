@@ -450,11 +450,11 @@ Section DeriveHomotopy .
   Variables (u v u' v': R -> R -> R) (a' b' a b :R).
   Variables (g1 g2 : R -> R -> R ).
 
-  Definition g:= fun p q => (g1 p q, g2 p q).
-  Definition f:= fun z => (u z.1 z.2, v z.1 z.2).
-  Definition f':= fun z => (u' z.1 z.2, v' z.1 z.2).
-  Definition g_t := fun p q => (Derive (g1 p) q, Derive (g2 p) q).
-  Definition g_r := fun p q => (Derive (g1 ^~ q) p, Derive (g2 ^~ q) p).
+  Local Definition g:= fun p q => (g1 p q, g2 p q).
+  Local Definition f:= fun z => (u z.1 z.2, v z.1 z.2).
+  Local Definition f':= fun z => (u' z.1 z.2, v' z.1 z.2).
+  Local Definition g_t := fun p q => (Derive (g1 p) q, Derive (g2 p) q).
+  Local Definition g_r := fun p q => (Derive (g1 ^~ q) p, Derive (g2 ^~ q) p).
   Hypothesis a'bd: (Rmin a b < a' < Rmax a b).
   Hypothesis b'bd: (Rmin a b < b' < Rmax a b).
 

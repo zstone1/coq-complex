@@ -1156,7 +1156,6 @@ Proof.
     repeat auto_continuous_aux; apply continuous_comp;
     try auto_continuous_aux.
     1,3: apply continuous_comp; last by apply ctsf.
-    Print Contour.
     3,4: by apply cts_derive.
     1,2: apply: ex_derive_continuous; eexists; apply contour_derive; auto.
   - apply/ ex_CInt_RInt.
@@ -1314,3 +1313,5 @@ Proof.
     have:= PI_RGT_0.
     lra.
 Qed.
+
+End CauchyIntegral.
