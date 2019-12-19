@@ -16,48 +16,87 @@ Set Bullet Behavior "Strict Subproofs".
 Require Import domains ext_rewrite real_helpers.
 Require Import domains cauchy_riemann path_independence cauchy_integral .
 
-(*The topology of compact convergence*)
-
-Definition Compactly_on (D: C -> Prop) f (P: (C -> C) -> Prop) : Prop := 
-  forall a b c d, 
-  (forall z, a <= z.1 <= b -> c <= z.2 <= d -> D z) -> 
-  (exists (del:posreal), forall g,
-     (forall z, a <= z.1 <= b -> c <= z.2 <= d -> Cmod (g z - f z) < del) -> 
-     (forall z, ~(a <= z.1 <= b -> c <= z.2 <= d ) -> f z = g z) ->
-   P g
-  ).
-
-Lemma sqr_dec : forall a b c d z,
-  (a <= z.1 <= b -> c <= z.2 <= d ) \/ ~(a <= z.1 <= b -> c <= z.2 <= d ).
-Proof.
-  move => a b c d z.
-  case (Rle_dec a z.1); 
-  case (Rle_dec z.1 b); 
-  case (Rle_dec c z.2); 
-  case (Rle_dec z.2 d);
-  tauto.
-Qed.
-
 Lemma Cminus_eq_0: forall z, z - z = 0.
 Proof. move => *. field_simplify_eq; auto. Qed.
+Section LocallyUniform.
 
-Global Instance compactly_filter: forall D f,
+Context {U:UniformSpace}.
+
+Definition locally_uniform_sub  (D: U -> Prop) f (P: (U -> U) -> Prop) : Prop := 
+  exists (del:posreal) x, D x /\ locally x (fun x' => D x' /\
+    (forall g, (ball (f x') del (g x')) -> P g)
+  ).
+
+Inductive locally_uniform (D: U -> Prop) f (P: (U -> U) -> Prop) : Prop :=
+  | Single: locally_uniform_sub D f P  -> locally_uniform D f P
+  | Intersect: forall Q1 Q2, 
+    (forall z, Q1 z /\ Q2 z -> P z) -> 
+    locally_uniform D f Q1 -> 
+    locally_uniform D f Q2 -> 
+    locally_uniform D f P. 
+  
+
+Global Instance locally_uniform_filter: forall D f,
   open D -> 
   (exists z0, D z0) ->
-  ProperFilter (Compactly_on D f).
+  ProperFilter (locally_uniform D f).
 Proof.
   move => D f openD [z0 z0D].
-  repeat constructor.
-  - move => P cpt; exists f.
-    eapply locally_open in z0D; eauto.
-    move: z0D => [del z0D].
-    have?:= cond_pos del.
-    have?: 0 < del/2 by lra.
-    move: cpt => /(_ 
-      (z0.1 - del/4) 
-      (z0.1 + del/4) 
-      (z0.2 - del/4) 
-      (z0.2 + del/4) )%R.
+  constructor;[| constructor].
+  - move => P cpt. exists f.
+    elim: cpt.
+    + move => Q [del [x [_ [del2 /(_ x) ]]]].
+      case; first by apply: ball_center.
+      move => _.
+      apply. 
+      apply: ball_center.
+    + move => P0 Q R pand _ ? _ ?.
+      apply pand; tauto.
+  - constructor. 
+    exists pos_half.
+    exists z0.
+    split; first by auto.
+    apply (filter_imp (D)) .
+    + move => x Dx; split; auto.
+    + apply: locally_open; eauto.
+  - move => P Q lP lQ.
+    apply: Intersect. 
+    + move => z. apply.
+    + auto.
+    + auto.
+
+  - move => P + + H. 
+    case: H.
+    + move => [eps [u [Du [del H]]]] Q Qimpl. 
+      constructor.
+      exists eps, u. 
+      split; first by auto.
+      exists del => y yball.
+      split; first by apply H.
+      move => g gball.
+      apply Qimpl.
+      move:H => /(_ y yball ) [_ H].
+      apply H.
+      auto.
+    + move => Q1 Q2 impl lQ1 lQ2 Q Qimpl.
+      apply: Intersect.
+      3: apply lQ2.
+      2: apply lQ1.
+      firstorder.
+Qed.
+
+
+      move => lQ1 Q1impl lQ2 Q2impl Qimpl.
+      apply Q1impl; move => 
+      
+
+
+      
+
+
+    + move => P0.
+    
+    elim: cpt.
     case.
     + move => z [r1 r2] [r3 r4]. 
       apply z0D.
@@ -76,7 +115,9 @@ Proof.
     + move => x. 
       have xge0:= cond_pos x.
       apply => *.
-      rewrite Cminus_eq_0 Cmod_0 //=.
+      unfold_alg.
+      rewrite -?/(Rminus _ _).
+      rewrite !Rminus_eq_0 ?Rabs_R0 //=.
       reflexivity.
   - move => *. exists pos_half; auto.
   - move => P Q C1 C2.
@@ -88,9 +129,9 @@ Proof.
     move => g gbd_in gbd_out.
     split; [apply H1| apply H2] => z. 
     2,4: auto.
-    1,2: move => zbd1 zbd2; apply: Rlt_le_trans. 
-    2: apply Rmin_l. 
-    3: apply Rmin_r.
+    1,2: move => zbd1 zbd2; apply: ball_le.
+    1: apply Rmin_l. 
+    2: apply Rmin_r.
     all: apply gbd_in; eauto.
   - move => P Q impl C.
     move => a b c d sqr_in.
@@ -110,7 +151,7 @@ Fixpoint in_patch (l: list (R*R*R*R)):  C -> Prop :=
       (a <= z.1 <= b /\ c <= z.2 <= d) \/ (in_patch l' z)
   end.
   
-Definition OnPatches (D: C -> Prop) f (P: (C -> C) -> Prop) : Prop := 
+ Definition OnPatches (D: C -> Prop) f (P: (C -> C) -> Prop) : Prop := 
   forall (l: list (R *R * R*R)), 
     l <> [] -> 
     (forall z, in_patch l z -> D z) ->
@@ -120,7 +161,7 @@ Definition OnPatches (D: C -> Prop) f (P: (C -> C) -> Prop) : Prop :=
    P g
   ).
 
-(* Lemma squares_implies_patches: forall D f P, 
+ Lemma squares_implies_patches: forall D f P, 
   Compactly_on D f P -> OnPatches D f P.
 Proof.
   move => D f P com.
@@ -161,7 +202,8 @@ Proof.
     auto.
   + apply gbd_out.
     rewrite /in_patch   .
-Qed. *)
+    admit.
+Admitted.  *)
 
 (* Lemma patches_iff_squares: forall D f P, 
   Compactly_on D f P <-> OnPatches D f P.
@@ -199,15 +241,17 @@ Lemma compact_le_uniform: forall D f,
 Proof.
   move => D f P [del loc].
   move => a b c d sqr.
-  exists del.
+  exists (del).
   move => g gbd_in gbd_out.
   apply loc.
   rewrite /ball //= /fct_ball.
   move => z.
   destruct (sqr_dec a b c d z) .
-  - unfold_alg. 
-    rewrite -?/(Rminus _ _).
-    apply gbd_in.
+  - apply: gbd_in; tauto.
+  - rewrite gbd_out; auto.
+    apply ball_center.
+Qed.
+  
 
   
   
@@ -244,24 +288,38 @@ Proof.
 
     apply ex_CInt_RInt, cts_CInt; auto.
   - Set Printing Implicit.
-    have : ( 
-          @filterlim T (R -> C_R_CompleteNormedModule)
-            (fun (u : T) (t : R) => f_ u (gamma gam t)) F
-            (@locally (fct_UniformSpace R C_R_CompleteNormedModule)
-            (fun t : R => flim (gamma gam t)))). 
-    {  
-        eapply (@filterlim_comp T (C -> C) (R -> C)
-          _ (fun h t => h(gamma gam t)) ) in H.
-        apply H.
-        apply: (@filterlim_filter_le_1 _ _ (locally flim)).
-        admit.  
-        apply/filterlim_locally => eps.
-        exists eps => y.
-        unfold_alg.
-        rewrite /fct_ball /ball //= /prod_ball .
-   }
-   admit.
+    rewrite /filterlim /filtermap /filter_le.
+    move => P [del L].
+    move: H => /(_ (fun h => P(fun t => h (gamma gam t) * gamma' gam t ))).
+    apply.
+    move => a b c d sqrbd.
+    exists del => h hball_in hball_out.
+    apply L.
+    unfold_alg.
+    rewrite /fct_ball /ball //= /prod_ball .
+    unfold_alg => t.
 
+    case (sqr_dec a b c d (gamma gam t)) => sqr;[split|].
+    + set z := (gamma gam t).
+      set z' := (gamma' gam t).
+      set p := (x in Rabs x).
+      Open Scope R.
+      replace p with ((((h z).1 - (flim z).1) * z'.1) - 
+                      (((h z).2 - (flim z).2) * z'.2)).
+      
+      2: rewrite /p; field_simplify. 
+      2: apply Rplus_eq_compat_l.
+
+      simplify_R p.
+      admit.
+    + rewrite hball_out; last by auto.
+      set p := (x in Rabs x). 
+      simplify_R p.
+      rewrite Rabs_R0.
+      set p := (x in Rabs x). 
+      simplify_R p.
+      rewrite Rabs_R0.
+      split; apply cond_pos.
   - move => z [+ /is_RInt_unique ->].
     apply.
 Admitted.
