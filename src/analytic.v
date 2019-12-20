@@ -114,7 +114,15 @@ End LocallyUniform.
 Section LocallyConverge.
 
 Context {T:UniformSpace} {F: (T -> Prop) -> Prop } {FF: ProperFilter F}.
+SearchAbout (compact).
   
+Lemma bounded_locally_uniform : forall D f_ flim gam, 
+  open D ->
+  filterlim f_ F (locally_uniform D flim) ->
+  forall z, D( g z) -> 
+  
+  
+
 Open Scope C.
 Lemma filterlim_mult: forall {U:UniformSpace}
   (f: T -> U -> C) (g: U -> C) flim,
@@ -192,16 +200,19 @@ Proof.
       try apply Rabs_pos.
 Qed.
 
+Definition contour_equiv g1 g2 := 
+  (l_end g1 = l_end g2) /\
+  (r_end g1 = r_end g2) /\ 
+  (forall t, l_end g1 <= t <= r_end g1 -> 
+    gamma g1 t = gamma g2 t) /\
+  (forall t, l_end g1 <= t <= r_end g1 -> 
+    gamma' g1 t = gamma' g2 t).
+
 Lemma CInt_gamma_ext: forall g1 g2 f, 
-  (l_end g1 = l_end g2) -> 
-  (r_end g1 = r_end g2) -> 
-  (forall t, l_end g1 <= t <= r_end g1 -> 
-    gamma g1 t = gamma g2 t) ->
-  (forall t, l_end g1 <= t <= r_end g1 -> 
-    gamma' g1 t = gamma' g2 t) ->
+  contour_equiv g1 g2 ->
   CInt g1 f = CInt g2 f.
 Proof.
-  move => g1 g2 f lend rend ext ext'.
+  move => g1 g2 f [lend [rend [ext ext']]].
   rewrite /CInt lend rend.
   under RInt_ext => t.
     rewrite Rmin_left; last by (left; apply endpoint_interval).
@@ -212,6 +223,61 @@ Proof.
   over.
   auto.
 Qed.
+
+Lemma bounded_derive_contour: forall g1, exists g2,
+  contour_equiv g1 g2 /\
+  exists M : posreal, forall z, norm (gamma' g2 z) < M. 
+Proof.
+  move => g1. 
+  pose gam2 := {|
+    gamma := extension_C1 (gamma g1) (gamma' g1) (l_end g1) (r_end g1);
+    gamma' := extension_C0 (gamma' g1) (l_end g1) (r_end g1);
+    l_end := l_end g1;
+    r_end := r_end g1;
+    endpoint_interval := endpoint_interval g1;
+    contour_derive := ltac:( move => *; apply:extension_C1_is_derive;
+    [ rewrite /Rbar_le; left; apply: endpoint_interval
+    | rewrite /Rbar_le; move => *; apply contour_derive; auto
+    ]);
+    cts_derive := ltac:(move => *; apply: extension_C0_continuous;
+    [ rewrite /Rbar_le; left; apply: endpoint_interval
+    | rewrite /Rbar_le; move => *; apply cts_derive; auto
+    ])
+      |}.
+  exists gam2.
+  repeat split.
+  - move => * //=. symmetry. apply: extension_C1_ext; simpl; auto; lra.
+  - move => * //=. symmetry. apply: extension_C0_ext; simpl; auto; lra.
+  - have := bounded_continuity (gamma' g1) (l_end gam2) (r_end gam2).
+    case. {
+        move => t tbd.
+        simpl.
+        apply: cts_derive.
+        auto.
+    }
+    move => M Mbd.
+    have: (0 < M ). {
+      apply: Rle_lt_trans.
+      apply: norm_ge_0 (gamma' gam2 (l_end gam2)).
+      simpl.
+      rewrite extension_C0_ext; simpl; 
+        [| reflexivity | left; apply: endpoint_interval].
+      apply Mbd.
+      split; [reflexivity | left; apply: endpoint_interval ].
+    }
+    move => Q.
+    exists (mkposreal _ Q).
+    simpl.
+    move => z.
+    rewrite /extension_C0.
+      destruct_match.
+      clear l.
+      destruct_match.
+      all: apply Mbd; auto.
+      all: split; try reflexivity;
+           try (left; apply: endpoint_interval).
+Qed.
+
 Open Scope C.
 Lemma uniform_limits_CInt : forall 
   (D: C -> Prop)
@@ -228,114 +294,83 @@ Proof.
 
   wlog: gam gam_in_D cts / 
     exists M : posreal, forall z : R_UniformSpace, norm (gamma' gam z) < M. {
-      pose gam2 := {|
-        gamma := extension_C1 (gamma gam) (gamma' gam) (l_end gam) (r_end gam);
-        gamma' := extension_C0 (gamma' gam) (l_end gam) (r_end gam);
-        l_end := l_end gam;
-        r_end := r_end gam;
-        endpoint_interval := endpoint_interval gam;
-        contour_derive := ltac:( move => *; apply:extension_C1_is_derive;
-        [ rewrite /Rbar_le; left; apply: endpoint_interval
-        | rewrite /Rbar_le; move => *; apply contour_derive; auto
-        ]);
-        cts_derive := ltac:(move => *; apply: extension_C0_continuous;
-        [ rewrite /Rbar_le; left; apply: endpoint_interval
-        | rewrite /Rbar_le; move => *; apply cts_derive; auto
-        ])
-      |}.
-      move => /(_ (gam2)) H'.
+      have:= bounded_derive_contour gam.
+      move => [gam2 [eqv bdd]] H'.
       rewrite (@CInt_gamma_ext gam gam2); auto.
       eapply filterlim_ext.
         move => t.
         rewrite (@CInt_gamma_ext gam gam2); auto.
       reflexivity.
-      all: simpl. 
-      1,4: move => *;symmetry; apply extension_C1_ext; simpl; lra.
-      1,3: move => *;symmetry; apply extension_C0_ext; simpl; lra.
+      move: eqv => [lends [rends[ext1 ext2]]].
       apply H'.
-      - rewrite /contour_inside //=.
-        move => t tbd.
-        rewrite extension_C1_ext; simpl; auto.
-        all: simpl; lra.
-      - rewrite /cts_on_contour //=.
-        move => u t tbd.
-        rewrite extension_C1_ext; simpl; auto.
-        apply: cts; lra.
-        all: lra.
-      - have := bounded_continuity (gamma' gam) (l_end gam2) (r_end gam2).
-        case. {
-            move => t tbd.
-            simpl.
-            apply: cts_derive.
-            auto.
-        }
-        move => M Mbd.
-        have: (0 < M ). {
-          apply: Rle_lt_trans.
-          apply: norm_ge_0 (gamma' gam2 (l_end gam2)).
-          simpl.
-          rewrite extension_C0_ext; simpl; 
-            [| reflexivity | left; apply: endpoint_interval].
-          apply Mbd.
-          split; [reflexivity | left; apply: endpoint_interval ].
-        }
-        move => Q.
-        exists (mkposreal _ Q).
-        simpl.
-        move => z.
-        rewrite /extension_C0.
-          destruct_match.
-          clear l.
-          destruct_match.
-          all: apply Mbd; auto.
-          all: split; try reflexivity;
-               try (left; apply: endpoint_interval).
+      - move => t tbd.
+        rewrite -ext1; first apply gam_in_D.
+        all: rewrite lends rends; lra.
+      - move => u t tbd.
+        rewrite -ext1; first apply cts.
+        all: rewrite lends rends; lra.
+      - auto.
   }
   move => bounded.
+  have ? : l_end gam < r_end gam by apply endpoint_interval.
 
   rewrite /CInt.
+  eapply filterlim_ext.
+    move => x.
+    eapply RInt_ext. move => t tbd.
+      rewrite Rmin_left in tbd; last by left.
+      rewrite Rmax_right in tbd; last by left.
+      rewrite -(extension_C0_ext (gamma gam) (l_end gam) (r_end gam)).
+      2,3: simpl; left; apply tbd.
+  reflexivity.
+  erewrite RInt_ext. 2: {
+     move => t tbd.
+    rewrite Rmin_left in tbd; last by left.
+    rewrite Rmax_right in tbd; last by left.
+    rewrite -(extension_C0_ext (gamma gam) (l_end gam) (r_end gam)).
+    2,3: simpl; left; apply tbd.
+    reflexivity.
+  }
+  pose gamma_bar := extension_C0 (gamma gam) (l_end gam) (r_end gam) .
   have := @filterlim_RInt T
           (C_R_CompleteNormedModule) 
-          (fun u t => f_ u (gamma gam t) * gamma' gam t)
+          (fun u t => f_ u (
+            (gamma_bar t)) * 
+            gamma' gam t)
           (l_end gam)
           (r_end gam) 
           F
           (ltac:(auto))
-          (fun t => flim (gamma gam t) * gamma' gam t)
+          (fun t => flim (gamma_bar t) * gamma' gam t)
           (fun u =>  RInt (V:=C_R_CompleteNormedModule)
-                     (fun t : R => f_ u (gamma gam t) * gamma' gam t) 
+                     (fun t : R => f_ u (
+                       gamma_bar t) * 
+                       gamma' gam t)
                      (l_end gam) (r_end gam)  ).
   case. 
   - move => u. 
-    apply RInt_correct. 
-
-    apply ex_CInt_RInt, cts_CInt; auto.
-  - apply filterlim_mult.
-    1: apply bounded.
+    apply: RInt_correct. 
+    apply: ex_RInt_continuous. move => t tbd.
+    rewrite Rmin_left in tbd; last by left.
+    rewrite Rmax_right in tbd; last by left.
+    apply/continous_C_NormedModule.
+    apply: continuous_mult; last by
+      apply/continous_C_NormedModule; apply: cts_derive; auto.
+    apply continuous_comp.
+    + apply: extension_C0_continuous; simpl; first by left.
+      move => *. apply: is_derive_continuous.
+      apply: contour_derive; auto.
+    + rewrite /gamma_bar extension_C0_ext; simpl.
+      2,3: apply tbd.
+      apply/continous_C_NormedModule.
+      apply cts.
+      auto.
+  - apply filterlim_mult; first by apply: bounded.
     move => P [del L].
-    move: H => /(_ (fun h => P(fun t => h (gamma gam t) ))).
+    move: H => /(_ (fun h => P(fun t => h (gamma_bar t) ))).
     apply.
-    case (sqr_dec a b c d (gamma gam t)) => sqr;[split|].
-    + set z := (gamma gam t).
-      set z' := (gamma' gam t).
-      set p := (x in Rabs x).
-      Open Scope R.
-      replace p with ((((h z).1 - (flim z).1) * z'.1) - 
-                      (((h z).2 - (flim z).2) * z'.2)).
-      
-      2: rewrite /p; field_simplify. 
-      2: apply Rplus_eq_compat_l.
-
-      simplify_R p.
-      admit.
-    + rewrite hball_out; last by auto.
-      set p := (x in Rabs x). 
-      simplify_R p.
-      rewrite Rabs_R0.
-      set p := (x in Rabs x). 
-      simplify_R p.
-      rewrite Rabs_R0.
-      split; apply cond_pos.
+    
+    admit.
   - move => z [+ /is_RInt_unique ->].
     apply.
 Admitted.
