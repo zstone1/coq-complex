@@ -273,30 +273,25 @@ Proof.
         have: (0 < M ). {
           apply: Rle_lt_trans.
           apply: norm_ge_0 (gamma' gam2 (l_end gam2)).
+          simpl.
+          rewrite extension_C0_ext; simpl; 
+            [| reflexivity | left; apply: endpoint_interval].
           apply Mbd.
-          split; [reflexivity | left; apply endpoint_interval ].
+          split; [reflexivity | left; apply: endpoint_interval ].
         }
         move => Q.
         exists (mkposreal _ Q).
         simpl.
         move => z.
-        case: (Rle_dec (l_end gam) z ) => zbd1;
-        case: (Rle_dec z (r_end gam) ) => zbd2.
-        + apply Mbd; split; auto.
-        + rewrite /extension_C0.
+        rewrite /extension_C0.
           destruct_match.
           clear l.
           destruct_match.
-          all: apply Mbd.
-
-
-
-      m
-      move => H2.
-      destruct H2.
-      case.
-
+          all: apply Mbd; auto.
+          all: split; try reflexivity;
+               try (left; apply: endpoint_interval).
   }
+  move => bounded.
 
   rewrite /CInt.
   have := @filterlim_RInt T
@@ -316,7 +311,7 @@ Proof.
 
     apply ex_CInt_RInt, cts_CInt; auto.
   - apply filterlim_mult.
-    1: admit.
+    1: apply bounded.
     move => P [del L].
     move: H => /(_ (fun h => P(fun t => h (gamma gam t) ))).
     apply.
