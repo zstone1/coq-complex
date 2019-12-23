@@ -520,33 +520,10 @@ Proof.
   apply t0close.
 Qed.
 
-Definition contour_inside (g:Contour) D:= 
-  forall t, l_end g <= t <= r_end g -> D (gamma g t).
-  
-Definition OnPaths (D: C -> Prop) f (P: (C -> C) -> Prop) : Prop := 
-  forall (gam:Contour), 
-    contour_inside gam D ->
-  (exists (del:posreal), forall g,
-     (forall t, l_end gam <= t <= r_end gam -> 
-     Cmod (g (gamma gam t) - f (gamma gam t)) < del) -> 
-   P g
-  ).
-
-Lemma locally_uniform_le_uniform: forall D f,
+Lemma filterlim_compose_path forall D
+  (f_: T -> C -> C) flim F {FF: Filter F} (g: R -> C),
+  open D,
   (exists z0, D z0) ->
-  filter_le (locally f) (locally_uniform D f).
-Proof.
-  move => D f [z0 Dz0] ?. 
-  elim. 
-  + move => P [eps[x[del [Dx H']]]].
-    exists eps => g gball.
-    apply H'.
-    move => z _.
-    apply gball.
-  + move => P Q1 Q2 impl unifQ1 lQ1 unifQ2 lQ2.
-    have:=  @filter_and _ _ _ _ _ lQ1 lQ2.
-    move => /(_ ltac:(apply locally_filter)) H.
-    apply: filter_imp H; auto.
-Qed.
-
-End LocallyUniform.
+  filterlim (f_) F (compactly flim) ->
+  (exists E, fam_union Fam E /\ (forall t':T', E (g t'))) ->
+  filterlim (fun t u => f_ t (g u)) F (@locally (fct_UniformSpace T' V) (fun u => flim (g u))) .

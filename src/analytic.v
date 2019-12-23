@@ -14,111 +14,15 @@ Set Bullet Behavior "Strict Subproofs".
 
 
 Require Import domains ext_rewrite real_helpers.
-Require Import domains cauchy_riemann path_independence cauchy_integral .
+Require Import domains cauchy_riemann path_independence cauchy_integral compact_convergence.
 
 Lemma Cminus_eq_0: forall z, z - z = 0.
 Proof. move => *. field_simplify_eq; auto. Qed.
-Section LocallyUniform.
 
-Context {U V:UniformSpace}.
 
-Definition locally_uniform_sub  (D: U -> Prop) f (P: (U -> V) -> Prop) : Prop := 
-  exists (eps:posreal) x (del:posreal), D x /\ forall g, 
-      (forall x', ball x del x' -> ball (f x') eps (g x')) -> 
-      P g
-  .
-
-Inductive locally_uniform (D: U -> Prop) f (P: (U -> V) -> Prop) : Prop :=
-  | Single: locally_uniform_sub D f P  -> locally_uniform D f P
-  | Intersect: forall Q1 Q2, 
-    (forall z, Q1 z /\ Q2 z -> P z) -> 
-    locally_uniform D f Q1 -> 
-    locally_uniform D f Q2 -> 
-    locally_uniform D f P. 
-  
-
-Global Instance locally_uniform_filter: forall D f,
-  (exists z0, D z0) ->
-  ProperFilter (locally_uniform D f).
-Proof.
-  move => D f [z0 z0D].
-  constructor;[| constructor].
-  - move => P cpt. exists f.
-    elim: cpt.
-    + move => ? [eps [x [del [Dx +]]]].
-      apply.
-      move => *.
-      apply: ball_center.
-    + move => P0 Q R pand _ ? _ ?.
-      apply pand; tauto.
-  - constructor. 
-    exists pos_half.
-    exists z0.
-    exists pos_half.
-    split; first by auto.
-    move => * //=.
-  - move => P Q lP lQ.
-    apply: Intersect. 
-    + move => z. apply.
-    + auto.
-    + auto.
-
-  - move => P + + H. 
-    case: H.
-    + move => [eps [u [del[Du H]]]] Q Qimpl. 
-      constructor.
-      exists eps, u, del. 
-      split; first by auto.
-      move => y yball.
-      apply Qimpl.
-      apply H.
-      auto.
-    + move => Q1 Q2 impl lQ1 lQ2 Q Qimpl.
-      apply: Intersect.
-      3: apply lQ2.
-      2: apply lQ1.
-      firstorder.
-Qed.
-
-Definition contour_inside (g:Contour) D:= 
-  forall t, l_end g <= t <= r_end g -> D (gamma g t).
-  
-Definition OnPaths (D: C -> Prop) f (P: (C -> C) -> Prop) : Prop := 
-  forall (gam:Contour), 
-    contour_inside gam D ->
-  (exists (del:posreal), forall g,
-     (forall t, l_end gam <= t <= r_end gam -> 
-     Cmod (g (gamma gam t) - f (gamma gam t)) < del) -> 
-   P g
-  ).
-
-Lemma locally_uniform_le_uniform: forall D f,
-  (exists z0, D z0) ->
-  filter_le (locally f) (locally_uniform D f).
-Proof.
-  move => D f [z0 Dz0] ?. 
-  elim. 
-  + move => P [eps[x[del [Dx H']]]].
-    exists eps => g gball.
-    apply H'.
-    move => z _.
-    apply gball.
-  + move => P Q1 Q2 impl unifQ1 lQ1 unifQ2 lQ2.
-    have:=  @filter_and _ _ _ _ _ lQ1 lQ2.
-    move => /(_ ltac:(apply locally_filter)) H.
-    apply: filter_imp H; auto.
-Qed.
-
-End LocallyUniform.
-
-Section LocallyConverge.
+Section FilterlimFunc.
 
 Context {T:UniformSpace} {F: (T -> Prop) -> Prop } {FF: ProperFilter F}.
-  
-
-  
-  
-  
 
 Open Scope C.
 Lemma filterlim_mult: forall {U:UniformSpace}
@@ -275,6 +179,14 @@ Proof.
            try (left; apply: endpoint_interval).
 Qed.
 
+Definition contour_inside (g:Contour) D:= 
+  forall t, l_end g <= t <= r_end g -> D (gamma g t).
+
+(**I need this to deal with some compactness issues. 
+   very likely it can be removed by requring D to be decidable, so
+   and because square_in becomes decidable.*)
+Axiom classical: forall P:Prop, ~ ~P  <-> P.
+
 Open Scope C.
 Lemma uniform_limits_CInt : forall 
   (D: C -> Prop)
@@ -282,12 +194,14 @@ Lemma uniform_limits_CInt : forall
   (flim : C -> C)
   (gam: Contour),
   open D ->
+  (forall z, D z \/ ~ D z) ->
+  (exists z0, D z0) ->
   contour_inside gam D ->
   (forall u, cts_on_contour (f_ u) gam) ->
-  filterlim f_ F (locally_uniform D flim) -> 
+  filterlim f_ F (compactly D flim) -> 
   filterlim (fun u => CInt gam (f_ u)) F (locally (CInt gam flim)).
 Proof.
-  move => D f_ flim gam openD gam_in_D cts H.
+  move => D f_ flim gam openD decD nonempty gam_in_D cts H.
 
   wlog: gam gam_in_D cts / 
     exists M : posreal, forall z : R_UniformSpace, norm (gamma' gam z) < M. {
@@ -363,114 +277,58 @@ Proof.
       apply cts.
       auto.
   - apply filterlim_mult; first by apply: bounded.
-    Set Printing Implicit.
-    move => P [del L].
-    move: H => /(_ (fun h => P(fun t => h (gamma_bar t) ))).
-    apply.
-    constructor.
-    exists pos_half.
-    exists (gamma_bar (l_end gam)).
-    exists pos_half.
-    split.
-    move: L => /(_ (fun t => h(gamma_bar t))).
-    
-    admit.
+    apply: (filterlim_compose_fam).
+    1: apply compactly_non_trivial; eauto.
+    1: auto.
+    have := @path_in_circles gamma_bar D (l_end gam) (r_end gam)
+             openD (ltac:(auto)) (ltac:(auto)).
+    rewrite classical.
+    case.
+    + move => *. 
+      rewrite /gamma_bar /extension_C0.
+      destruct_match; last apply gam_in_D.
+      clear l.
+      destruct_match; apply gam_in_D.
+      all: split; try reflexivity; auto; left; auto.
+    + move => *. 
+      apply: extension_C0_continuous; first by left.
+      move => t tbd1 tbd2.
+      apply: is_derive_continuous.
+      apply contour_derive.
+      auto.
+    + move => cov [sqrs cover].
+      exists (fun z => Exists (@^~ z) cov).
+      split; first by (
+        exists cov;
+        split; auto;
+        move => *; tauto
+      ).
+      move => t.
+      rewrite /gamma_bar /extension_C0.
+      have r_eq: gamma_bar (r_end gam) = gamma gam (r_end gam). {
+        rewrite /gamma_bar /extension_C0.
+        destruct_match; clear l; try destruct_match.
+        1,2: auto.
+        simpl in *.
+        lra.
+      }
+      have l_eq: gamma_bar (l_end gam) = gamma gam (l_end gam). {
+        rewrite /gamma_bar /extension_C0.
+        destruct_match; clear l; try destruct_match.
+        1,3: auto.
+        simpl in *.
+        lra.
+      }
+        
+      (destruct_match); simpl in *.
+      move: l => l'.
+      destruct_match;
+      move: l => l''.
+      * rewrite -(extension_C0_ext _ (l_end gam) (r_end gam)); auto.
+      * move: cover => /(_ (r_end gam) (ltac:(lra))).
+        rewrite r_eq //=.
+      * move: cover => /(_ (l_end gam) (ltac:(lra))).
+        rewrite l_eq //=.
   - move => z [+ /is_RInt_unique ->].
     apply.
-Admitted.
-
-  apply/ filterlim_locally => eps.
-
-  rewrite /filterlim /filter_le /filtermap in H.
-  move:H.
-  move => /(_ (fun t => 
-    ball (CInt gam flim) eps (CInt gam t ))).
-  apply.
-  move => 
-  eexists ?[del].
-  move => g gbd.
-  rewrite (@lock _ CInt).
-  unfold_alg.
-  rewrite -lock.
-  Check ().
-
-
-
-
-
-  True.
-  wlog ext : f_ flim H cts / 
-    (forall z, ~( exists t, l_end gam <= t <= r_end gam  -> z = gamma gam t)
-                   -> forall u, f_ u z = flim z).
-  admit.
-
-  (* need to pull back open balls from C to R.
-     Should be able to use open_comp to get this*)
-(* 
-  pose delta := (fun t => 
-      match Rlt_dec t (l_end g) with 
-      | left _ => pos_div_2
-          (proj1_sig (locally_ex_dec 
-            (gamma g (l_end g)) D 
-            (decD) 
-            (ltac:(apply openD; apply inD; split;
-                   [ reflexivity
-                   | left; apply endpoint_interval 
-                   ]
-                   ))))
-      | right pf1 => 
-        match Rlt_dec (r_end g) t with 
-        | left pf2 => pos_div_2
-            (proj1_sig (locally_ex_dec 
-               (gamma g (r_end g)) D 
-               (decD) 
-               (ltac:(apply openD; apply inD; split;
-                    [ left; apply endpoint_interval 
-                    | reflexivity
-                    ]
-                    ))))
-        | right pf2 => pos_div_2
-            (proj1_sig (locally_ex_dec 
-              (gamma g t) D 
-              (decD) 
-              (ltac:(apply openD; apply inD; lra))))
-        end
-      end).
-  have := (compactness_list 1 (l_end g,tt) (r_end g,tt) 
-    (fun t => delta (fst t))).
-  rewrite /bounded_n.
-  have := (compactness_value_1d (l_end g) (r_end g) 
-    (delta)). move  => [del H].
-  move => /NNPP [l H].
-  induction l.
-  - move: H => /( _ (l_end g,tt)).
-    case.
-    + rewrite /bounded_n; auto.
-  set comp := (x in not(not x)) in H.
-  move 
-  have: comp. { 
-    apply/negPn.  Decidable
-
-    case: H.  
-    contradict H.
-    apply H.  
-
-  }
-
-  move => H.
-  
-
-  rewrite /delta in n.
-
-  Locate proj1_sig. (locally_ex_dec x _ (H0 x) (H x))).
-  pose: 
-
-
-  
-Axiom classic : forall P:Prop, P \/ ~ P.
-
-Lemma NNPP : forall p:Prop, ~ ~ p -> p.
-Proof.
-unfold not in |- *; intros; elim (classic p); auto.
-intro NP; elim (H NP).
-Qed. *)
+Qed.
