@@ -114,12 +114,9 @@ End LocallyUniform.
 Section LocallyConverge.
 
 Context {T:UniformSpace} {F: (T -> Prop) -> Prop } {FF: ProperFilter F}.
-SearchAbout (compact).
   
-Lemma bounded_locally_uniform : forall D f_ flim gam, 
-  open D ->
-  filterlim f_ F (locally_uniform D flim) ->
-  forall z, D( g z) -> 
+
+  
   
   
 
@@ -366,9 +363,16 @@ Proof.
       apply cts.
       auto.
   - apply filterlim_mult; first by apply: bounded.
+    Set Printing Implicit.
     move => P [del L].
     move: H => /(_ (fun h => P(fun t => h (gamma_bar t) ))).
     apply.
+    constructor.
+    exists pos_half.
+    exists (gamma_bar (l_end gam)).
+    exists pos_half.
+    split.
+    move: L => /(_ (fun t => h(gamma_bar t))).
     
     admit.
   - move => z [+ /is_RInt_unique ->].
