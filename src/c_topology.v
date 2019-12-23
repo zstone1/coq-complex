@@ -78,6 +78,16 @@ Proof.
   auto.
 Qed.
 
+Lemma global_le_local : forall (E: U -> Prop) f ,
+  filter_le (locally f) (uniformly_on E f).
+Proof.
+  move => E1 f P [del H].
+  exists del => g gbd.
+  rewrite /ball /= /fct_ball in gbd.
+  apply: H => *.
+  apply gbd.
+Qed.
+
 Lemma uniformly_on_union : forall (E1 E2: U -> Prop) f P Q,
   uniformly_on E1 f P -> 
   uniformly_on E2 f Q -> 
@@ -141,39 +151,169 @@ Proof.
     auto.
 Qed.
 
+Lemma family_le_on_one : forall E f (Fam:(U -> Prop) -> Prop), Fam E ->
+  filter_le (uniformly_on_family Fam f) (uniformly_on E f).
+Proof.
+  move => E f Fam FamE P H.
+  have H': Fam E /\ uniformly_on E f P by split; auto.
+  exists [exist _ (E,P) H'].
+  move => g /Forall_forall.
+  move => /(_ (exist _ (E,P) H')).
+  apply.
+  constructor.
+  auto.
+Qed.
 
 Lemma filterlim_on_family {T: UniformSpace}: 
   forall (Fam: (U -> Prop) -> Prop) (f_: T -> U -> V) flim F {FF: Filter F},
-  (forall (E: U -> Prop), Fam E -> filterlim (f_) F (uniformly_on E flim)) -> 
+  (forall (E: U -> Prop), Fam E -> filterlim (f_) F (uniformly_on E flim)) <-> 
   filterlim (f_) F (uniformly_on_family Fam flim) .  
 Proof.
-  move => Fam f_ flim F FF all.
-  move => P [l+]. 
-  move: l P.
-  elim.
-  - move => ? H. 
-    apply: filter_imp; last by apply filter_true.
-    move => *.
+  move => Fam f_ flim F FF.
+  split. 
+  {
+    move => all P [l+]. 
+    move: l P.
+    elim.
+    - move => ? H. 
+      apply: filter_imp; last by apply filter_true.
+      move => *.
+      apply H.
+      apply Forall_nil.
+    - move => a l IH P H.
+      have {}H: forall g : U -> V,
+            ((`a).2 g) /\ (List.Forall (fun z => (` z).2 g) l) ->
+            P g by
+         move => *; apply H; apply Forall_cons; tauto.
+      apply (filter_imp _ P H).
+      apply filter_and.
+      + clear H. move: a => [[??][??]].
+        apply: all; eauto.
+      + apply IH; auto.
+  }
+  {
+    move => H E FamE.
+    apply: filterlim_filter_le_2; last by apply H.
+    apply family_le_on_one.
+    auto.
+  }
+Qed.
+
+Lemma filterlim_compose_aux {T: UniformSpace} {T': UniformSpace}: 
+  forall (Fam: (U -> Prop) -> Prop) (f_: T -> U -> V) flim F {FF: Filter F} (g: T' -> U),
+  filterlim (f_) F (uniformly_on_family Fam flim) ->
+  (exists E, Fam E /\ (forall t':T', E (g t'))) ->
+  filterlim (fun t u => f_ t (g u)) F (@locally (fct_UniformSpace T' V) (fun u => flim (g u))) .
+Proof.
+  move => Fam f_ flim F FF g + [E [Efam gcover]] P loc.
+  move => /(_ (fun h => P(fun t => h (g t) ))).
+  apply.
+  set P' := fun h => P (fun t => h (g t)).
+  have Ef: uniformly_on E flim P'. {
+    move: loc => [del H]. 
+    exists del.
+    move => h hball.
     apply H.
-    apply Forall_nil.
-  - move => a l IH P H.
+    rewrite /ball /= /fct_ball in hball .
+    rewrite /ball /= /fct_ball => t.
+    apply hball.
+    apply gcover.
+  }
+  apply: family_le_on_one; eauto.
+Qed.
+
+Definition fam_union (Fam :(U -> Prop ) -> Prop) (P: U -> Prop): Prop := 
+  exists l, List.Forall Fam l /\ 
+  (forall u, P u <-> List.Exists (fun E => E u) l).
+  
+Lemma fam_union_singleton: forall (Fam :(U -> Prop ) -> Prop) E, 
+  Fam E -> fam_union Fam E.
+Proof.
+  move => Fam E FamE.
+  exists [E].
+  split; auto.
+  move => *; split; auto.
+  rewrite Exists_cons Exists_nil.
+  move => [|]; tauto.
+Qed.
+
+Lemma fam_union_equiv:
+  forall (Fam: (U -> Prop) -> Prop) (f: U -> V) P,
+  (exists E , Fam E) ->
+  uniformly_on_family Fam f P <-> 
+  uniformly_on_family (fam_union Fam) f P .
+Proof.
+  move => Fam  f P [E0 FamE0].
+  have?:Filter (uniformly_on_family (fam_union Fam) f). {
+    apply uniformly_on_family_filter.
+    exists E0.
+    by apply fam_union_singleton.
+  }
+  have?:Filter (uniformly_on_family (Fam) f). {
+    apply uniformly_on_family_filter.
+    exists E0.
+    auto.
+  }
+  split. {
+    case => l +.
+    move:P.
+    elim: l; first 
+      by (move => *; exists []; auto).
+    move => a l IH P H.
     have {}H: forall g : U -> V,
           ((`a).2 g) /\ (List.Forall (fun z => (` z).2 g) l) ->
           P g by
        move => *; apply H; apply Forall_cons; tauto.
-    apply (filter_imp _ P H).
-    apply filter_and.
-    + clear H. move: a => [[??][??]].
-      apply: all; eauto.
-    + apply IH; auto.
-Qed.
+    apply: (filter_imp _ _ H).
+    apply: filter_and; last by apply IH.
+    move: a H => [[E Q][FamE unifQ]] H.
+    simpl in *.
+    have Hf: fam_union Fam E /\ uniformly_on E f Q by
+      split; [apply fam_union_singleton| ].
 
-Definition inner_ball (D: U -> Prop) x := exists y (del: posreal), 
-  (forall z, ball y del z -> D z) /\ ball y (pos_div_2 del) x.
+
+    exists [exist _ ( E , Q ) Hf].
+    move => g /Forall_forall.
+    move => /(_ (exist _ (E,Q) Hf)).
+    apply.
+    constructor.
+    auto.
+  }
+  {
+    move => [l +].
+    move: P.
+    elim:l; first by 
+      move => *; exists []; auto.
+    move => a l IH P H.
+    have {}H: forall g : U -> V,
+          ((`a).2 g) /\ (List.Forall (fun z => (` z).2 g) l) ->
+          P g by
+       move => *; apply H; apply Forall_cons; tauto.
+    apply: (filter_imp _ _ H).
+    apply: filter_and; last by apply IH.
+    move: a H => [[E Q][[r Famr] unifQ]] H.
+    simpl in *.
+    elim: r Famr P H. {
+      case => _ H' * .
+      case: unifQ => [? R].
+
+
+      apply: (filter_imp _ _ R).
+      apply: (filter_imp (fun=> True)_ ); last by apply filter_true.
+      move => x _ y .
+      rewrite H' Exists_nil; tauto.
+    }
+  }
+
+End UniformOn.
+
+Definition square_in (D: C -> Prop) -> P := P x <-> 
+  exists a b c d 
 
 (** Technically this is only "compactly" when D is bounded. 
     But that's ok because I will assume that in practice*)
-Definition compactly D (f: U -> V) := uniform_over_all (inner_ball D) D f.
+Definition compactly D (f: U -> V) := 
+  uniform_over_all (inner_ball D) D f.
 
 Global Instance compactly_filter: forall D f,
   ProperFilter (compactly D f).
