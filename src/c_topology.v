@@ -343,7 +343,7 @@ Proof.
   apply: family_le_on_one; eauto.
 Qed.
 
-Lemma filterlim_compose {T: UniformSpace} {T': UniformSpace}: 
+Lemma filterlim_compose_fam {T: UniformSpace} {T': UniformSpace}: 
   forall (Fam: (U -> Prop) -> Prop) (f_: T -> U -> V) flim F {FF: Filter F} (g: T' -> U),
   (exists E , Fam E) ->
   filterlim (f_) F (uniformly_on_family Fam flim) ->
@@ -358,71 +358,166 @@ Proof.
   auto.
 Qed.
 
-
- 
-
 End UniformOn.
 
-Definition square_in (D: C -> Prop) -> P := P x <-> 
-  exists a b c d 
+Definition square_in (D: C -> Prop) (P:C -> Prop) : Prop := 
+  (forall z, P z -> D z) /\
+  (exists a b c d, 
+    (forall z, P z <-> a <= z.1 <= b /\ c <= z.2 <= d)).
 
-(** Technically this is only "compactly" when D is bounded. 
-    But that's ok because I will assume that in practice*)
-Definition compactly D (f: U -> V) := 
-  uniform_over_all (inner_ball D) D f.
+Definition compactly D (f: C -> C) := uniformly_on_family (square_in D) f.
 
-Global Instance compactly_filter: forall D f,
+Lemma compactly_non_trivial: forall D, open D -> 
+  (exists z0, D z0) ->
+  exists P, square_in D P.
+Proof.
+  move => D openD [z0 Dz0].
+  have := openD z0 Dz0.
+  move => [del H].
+  have?:= cond_pos del.
+  pose P := fun z => z0.1 - del/2 <= z.1 <= z0.1 + del/2 /\
+                     z0.2 - del/2 <= z.2 <= z0.2 + del/2.
+  exists P.
+  split.
+  2: do 4 eexists; rewrite /P => z; apply reflexivity.
+  move => z [/Rabs_le_between' P1 /Rabs_le_between' P2]. 
+  apply H.
+  split; (apply (@Rle_lt_trans _ (del/2)); last by lra);
+  [apply P1 | apply P2].
+Qed.
+     
+Instance compactly_filter: forall (D: C -> Prop) f,
+  open D ->
+  (exists z0, D z0) ->
   ProperFilter (compactly D f).
 Proof.
-  move => D f.
-  apply: uniform_over_all_filter.
-  - move => E1 E2 [??].
-    SearchAbout (closed).
-    apply: closed_or.
-    
-  move => D f.
+  move => D f op ex.
+  apply uniformly_on_family_filter.
+  apply compactly_non_trivial;
+  auto.
+Qed.
 
+Lemma not_not_impl : forall (P Q:Prop), (P -> Q) -> (~ ~ P -> ~ ~ Q).
+move => P Q.
+tauto.
+Qed.
 
-      
-    
+Open Scope program_scope.
+Lemma path_in_circles: forall (g: R -> C) D a b, 
+  open D -> 
+  a < b ->
+  (forall z, D z \/ ~D z) ->
+  (forall t, a <= t <= b -> D (g t)) ->
+  (forall t, a <= t <= b -> continuous g t) ->
+  (~ ~ exists l, 
+   (List.Forall (square_in D) l ) /\
+   (forall t, a <= t <= b -> List.Exists (fun E => E (g t)) l)).
+Proof.
+  move => g D a b openD aleb decD inD cts.
 
+  have inlocD: forall t, ~t < a -> ~ b < t -> locally (g t) D by
+    ( move => *; apply openD; apply inD; lra).
 
+  have eps: forall t, 
+     {d: posreal | a <= t <= b -> forall y, ball (g t) d y -> D y }. {
+      move => t.
+      have := locally_ex_dec (g t) D decD. 
+      destruct (Rlt_dec t a); first by
+        move => _; exists pos_half; lra.
+      destruct (Rlt_dec b t); first by
+        move => _; exists pos_half; lra.
+      case;first by (apply openD; apply inD; lra). 
+      move => del H.
+      exists del.
+      move => *. 
+      by apply H.
+  }
 
-    apply H.
-    elim: cpt.
-    + move => ? [eps [x [del [Dx +]]]].
-      apply.
-      move => *.
-      apply: ball_center.
-    + move => P0 Q R pand _ ? _ ?.
-      apply pand; tauto.
-  - constructor. 
-    exists pos_half.
-    exists z0.
-    exists pos_half.
-    split; first by auto.
-    move => * //=.
-  - move => P Q lP lQ.
-    apply: Intersect. 
-    + move => z. apply.
-    + auto.
-    + auto.
+  have: {delta: R -> posreal | forall t, a <= t <= b ->
+      (forall t', a <= t' <= b -> ball t (delta t) t' -> 
+         ball_norm (g t) (pos_div_2 (` (eps t))) (g t')) /\ 
+      (forall z, ball (g t) (` (eps t)) z -> D z)
+  }. {
 
-  - move => P + + H. 
-    case: H.
-    + move => [eps [u [del[Du H]]]] Q Qimpl. 
-      constructor.
-      exists eps, u, del. 
-      split; first by auto.
-      move => y yball.
-      apply Qimpl.
+    pose delta := (unifcont_normed_1d g a b cts (pos_div_2 (` (eps _)))).
+  
+    exists (fun t => (proj1_sig (delta t))).
+    move => t tbd.
+    split.
+    - move => t' t'bd H.
+      apply (proj2_sig (delta t)); auto.
+    - move => z zball.
+      apply (proj2_sig (eps t)); auto.
+  }
+  case => delta H.
+  have := compactness_list 1 (a, tt) (b, tt) (fun t => delta (fst t)).
+  apply not_not_impl.
+  case.
+  move => l H'.
+
+  pose del_sqr := fun t z => 
+    let eps' := pos_div_2 (proj1_sig (eps t)) in
+    (g t).1 - eps' <= z.1 <= (g t).1 + eps' /\
+    (g t).2 - eps' <= z.2 <= (g t).2 + eps'.
+  exists (map (compose del_sqr fst) 
+         (filter (fun l => Rle_dec a l.1 && Rle_dec l.1 b)l)).
+  split. {
+    apply/Forall_forall => P.
+    move => /in_map_iff [t0 [<- /filter_In [int0
+      /andP [/RleP ? /RleP ?]]]].
+    rewrite/compose //=.
+    split.
+    - move => z [/Rabs_le_between' P1 /Rabs_le_between' P2]. 
+      move: H => /(_ t0.1 (ltac:(lra))) H.
       apply H.
-      auto.
-    + move => Q1 Q2 impl lQ1 lQ2 Q Qimpl.
-      apply: Intersect.
-      3: apply lQ2.
-      2: apply lQ1.
-      firstorder.
+      split.
+      + apply: Rle_lt_trans; first by apply P1.
+        simpl.
+        rewrite Rlt_div_l; try lra.
+        rewrite -[x in x < _]Rmult_1_r.
+        apply Rmult_lt_compat_l; try lra.
+        apply cond_pos.
+      + apply: Rle_lt_trans; first by apply P2.
+        simpl.
+        rewrite Rlt_div_l; try lra.
+        rewrite -[x in x < _]Rmult_1_r.
+        apply Rmult_lt_compat_l; try lra.
+        apply cond_pos.
+    - do 4 eexists. 
+      move => z.
+      rewrite /del_sqr.
+      reflexivity.
+  }
+
+  move => x xbd.
+  apply/ Exists_exists.
+  move: H' => /(_ (x,tt)).
+  case; first by simpl.
+  move => t0 [t0In [t0bd t0close]]. 
+   destruct t0. simpl in *.
+  exists (del_sqr r).
+  split.
+  - apply/ in_map_iff.
+    exists (r,t).
+    split; first by simpl.
+    apply/ filter_In.
+    split; first by tauto.
+    apply /andP. split; apply/RleP; simpl; apply t0bd.
+  - rewrite /del_sqr -?Rabs_le_between'.
+    have: (Rmax (Rabs (g x - g r).1) (Rabs (g x - g r).2) <= ` (eps r) /2).
+    2: { 
+      move => Hmax.
+      split.
+      + apply: Rle_trans; last apply Hmax.
+        apply Rmax_l.
+      + apply: Rle_trans; last apply Hmax.
+        apply Rmax_r.
+    }
+    apply: Rle_trans; first by apply Rmax_Cmod.
+  move: H => /(_ r (ltac:(lra))) [/(_ x xbd) H _].
+  left.
+  apply H.
+  apply t0close.
 Qed.
 
 Definition contour_inside (g:Contour) D:= 
