@@ -199,33 +199,52 @@ Proof.
   }
 Qed.
 
-Lemma filterlim_compose_aux {T: UniformSpace} {T': UniformSpace}: 
-  forall (Fam: (U -> Prop) -> Prop) (f_: T -> U -> V) flim F {FF: Filter F} (g: T' -> U),
-  filterlim (f_) F (uniformly_on_family Fam flim) ->
-  (exists E, Fam E /\ (forall t':T', E (g t'))) ->
-  filterlim (fun t u => f_ t (g u)) F (@locally (fct_UniformSpace T' V) (fun u => flim (g u))) .
-Proof.
-  move => Fam f_ flim F FF g + [E [Efam gcover]] P loc.
-  move => /(_ (fun h => P(fun t => h (g t) ))).
-  apply.
-  set P' := fun h => P (fun t => h (g t)).
-  have Ef: uniformly_on E flim P'. {
-    move: loc => [del H]. 
-    exists del.
-    move => h hball.
-    apply H.
-    rewrite /ball /= /fct_ball in hball .
-    rewrite /ball /= /fct_ball => t.
-    apply hball.
-    apply gcover.
-  }
-  apply: family_le_on_one; eauto.
-Qed.
-
 Definition fam_union (Fam :(U -> Prop ) -> Prop) (P: U -> Prop): Prop := 
   exists l, List.Forall Fam l /\ 
   (forall u, P u <-> List.Exists (fun E => E u) l).
   
+Lemma fam_union_aux: forall (Fam :(U -> Prop ) -> Prop) f r E Q ,
+  (exists E , Fam E) ->
+  uniformly_on E f Q ->
+  List.Forall Fam r /\ (forall u : U, E u <-> Exists (@^~ u) r) ->
+  uniformly_on_family Fam f Q.
+Proof.
+  move => Fam  f +++ [E0 FamE0].
+  have?:Filter (uniformly_on_family (Fam) f). {
+    apply uniformly_on_family_filter.
+    exists E0.
+    auto.
+  }
+  elim. {
+    move => E  Q unifQ [_  H'].
+    case: unifQ => [? R].
+    apply: (filter_imp _ _ R).
+    apply: (filter_imp (fun=> True)_ ); last by apply filter_true.
+    move => x _ y .
+    rewrite H' Exists_nil; tauto.
+  }
+  move => E l IH E' Q [del H] [fams Eunion].
+  have Hunion:forall g : U -> V, 
+    ((forall x : U, E x -> ball (f x) del (g x)) /\
+     (forall x : U, (Exists (@^~x) l) -> ball (f x) del (g x))) ->
+     Q g. {
+       move => g [HE HE'].
+       apply H => x.
+       rewrite Eunion.
+       rewrite Exists_cons.
+       case => ?; auto.
+  }
+  apply: (filter_imp _ _ Hunion).
+  inversion fams.
+  subst.
+  apply: filter_and.
+  - apply: family_le_on_one.
+    apply H2.
+    exists del => *; auto.
+  - apply (IH (fun u => Exists (@^~ u) l)).
+    + exists del => *; auto.
+    + repeat split; auto.
+Qed.
 Lemma fam_union_singleton: forall (Fam :(U -> Prop ) -> Prop) E, 
   Fam E -> fam_union Fam E.
 Proof.
@@ -293,17 +312,54 @@ Proof.
     apply: filter_and; last by apply IH.
     move: a H => [[E Q][[r Famr] unifQ]] H.
     simpl in *.
-    elim: r Famr P H. {
-      case => _ H' * .
-      case: unifQ => [? R].
-
-
-      apply: (filter_imp _ _ R).
-      apply: (filter_imp (fun=> True)_ ); last by apply filter_true.
-      move => x _ y .
-      rewrite H' Exists_nil; tauto.
-    }
+    apply: fam_union_aux.
+    exists E0; auto.
+    apply unifQ.
+    apply Famr.
   }
+
+Qed.
+
+Lemma filterlim_compose_aux {T: UniformSpace} {T': UniformSpace}: 
+  forall (Fam: (U -> Prop) -> Prop) (f_: T -> U -> V) flim F {FF: Filter F} (g: T' -> U),
+  filterlim (f_) F (uniformly_on_family Fam flim) ->
+  (exists E, Fam E /\ (forall t':T', E (g t'))) ->
+  filterlim (fun t u => f_ t (g u)) F (@locally (fct_UniformSpace T' V) (fun u => flim (g u))) .
+Proof.
+  move => Fam f_ flim F FF g + [E [Efam gcover]] P loc.
+  move => /(_ (fun h => P(fun t => h (g t) ))).
+  apply.
+  set P' := fun h => P (fun t => h (g t)).
+  have Ef: uniformly_on E flim P'. {
+    move: loc => [del H]. 
+    exists del.
+    move => h hball.
+    apply H.
+    rewrite /ball /= /fct_ball in hball .
+    rewrite /ball /= /fct_ball => t.
+    apply hball.
+    apply gcover.
+  }
+  apply: family_le_on_one; eauto.
+Qed.
+
+Lemma filterlim_compose {T: UniformSpace} {T': UniformSpace}: 
+  forall (Fam: (U -> Prop) -> Prop) (f_: T -> U -> V) flim F {FF: Filter F} (g: T' -> U),
+  (exists E , Fam E) ->
+  filterlim (f_) F (uniformly_on_family Fam flim) ->
+  (exists E, fam_union Fam E /\ (forall t':T', E (g t'))) ->
+  filterlim (fun t u => f_ t (g u)) F (@locally (fct_UniformSpace T' V) (fun u => flim (g u))) .
+Proof.
+  move => Fam *.
+  apply (@filterlim_compose_aux _ _ (fam_union Fam)); auto.
+  apply: filterlim_filter_le_2; last by eauto.
+  move => P.
+  apply fam_union_equiv.
+  auto.
+Qed.
+
+
+ 
 
 End UniformOn.
 
