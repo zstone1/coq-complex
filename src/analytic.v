@@ -2,7 +2,8 @@
 Require Import Reals Psatz Lra RelationClasses List.
 From Coquelicot Require Import Continuity 
   Rcomplements Derive Hierarchy AutoDerive Rbar Complex
-  RInt RInt_analysis Derive_2d Compactness.
+  RInt RInt_analysis Derive_2d Compactness
+  Series PSeries Lim_seq.
 From Coq Require Import ssreflect ssrfun ssrbool.
 Close Scope boolean_if_scope.
 Require Import Program.
@@ -331,4 +332,117 @@ Proof.
         rewrite l_eq //=.
   - move => z [+ /is_RInt_unique ->].
     apply.
+Qed.
+
+Open Scope C.
+Lemma C_sum_pow_n: forall (z : C) (n : nat),
+  z <> 1 ->
+  sum_n [eta Cpow z] n = ((1 - (Cpow z (S n))) / (1 - z)).
+Proof.
+  move => z + neq1.
+  have?:(1 - z <> 0) by
+    move => H; contradict neq1;
+    rewrite -[LHS]Cplus_0_l -H;
+    field_simplify_eq.
+  elim.
+  - simpl.
+    rewrite sum_O.
+    simpl.
+    field_simplify_eq; auto.
+  - move => n IH.
+    simpl.
+    rewrite sum_Sn /plus /= IH //=.
+    field_simplify_eq; last by auto.
+    auto.
+Qed.
+
+Lemma Cmod_lt_1_neq_1: forall z, Cmod z < 1 -> z <> 1.
+Proof.
+  move => z lt1 H.
+  rewrite H Cmod_1 in lt1.
+  lra.
+Qed.
+
+Global Instance abs_locally_filter: forall z,
+  Filter (@locally (AbsRing_UniformSpace C_AbsRing) z).
+Proof.
+  move => z.
+  constructor.
+  - apply/locally_C.
+    apply filter_true.
+  - move => P Q /locally_C H1 /locally_C H2.
+    apply/locally_C.
+    apply filter_and; auto.
+  - move => P Q impl /locally_C H.
+    apply: filter_imp.
+    1: apply impl.
+    apply/ locally_C.
+    auto.
+Qed.
+
+Lemma is_series_geom_C: forall z, 
+  Cmod z < 1 -> is_series (fun n => Cpow z n) (1/(1-z)).
+Proof.
+  move => z Hq.
+  have?:(1 - z <> 0) by
+    move: Hq => /Cmod_lt_1_neq_1 H1 H2; contradict H1;
+    rewrite -[LHS]Cplus_0_l -H2;
+    field_simplify_eq.
+  apply filterlim_ext with (fun n => (1/(1-z))+ -(Cpow z (S n)) / (1-z)). {
+    move => n.
+    rewrite C_sum_pow_n.
+    auto.
+    field_simplify_eq; auto.
+    apply Cmod_lt_1_neq_1. auto.
+  }
+  rewrite -[x in filterlim _ _ (locally x)]Cplus_0_r.
+  apply: (filterlim_comp_2 ).
+  1: apply filterlim_const.
+  2: apply: (@filterlim_plus _ _ (1/(1-z))).
+  apply: filterlim_comp_2.
+  2: apply filterlim_const.
+  2: rewrite /Cdiv; apply: filterlim_comp_2. 
+  3: apply: filterlim_fst.
+  3: apply: filterlim_comp.
+  3: apply: filterlim_snd.
+  4: apply: continuous_Cinv; auto.
+  4: apply: filterlim_filter_le_2.
+  5: apply: filterlim_filter_le_1.
+  6: apply: Hierarchy.filterlim_mult.
+  6: apply (0,0).
+  6: apply (/(1-z)).
+  4: rewrite /mult //= Cmult_0_l //=.
+  4: move => P H; apply/ prod_c_topology_eq; auto.
+  4: { move => P [Q R F1 F2 impl].
+       apply: Filter_prod .
+       2: apply/prod_c_topology_eq; apply F2.
+       1: apply F1.
+       auto.
+  }
+  Set Printing Implicit.
+  2: apply: filter_prod_filter .
+  2: apply: abs_locally_filter.
+  
+  rewrite -Copp_0.
+
+       
+    move => P H. apply/ prod_c_topology_eq; auto.
+  Set Printing Implicit.
+  4: have:=  (@Hierarchy.filterlim_mult (C_AbsRing) (zero) (Cinv (1-z))).
+  Locate filterlim_mult.
+  4: apply: filterlim_mult.
+  2: apply fiterlim_prod.
+  rewrite -Copp_0.
+  apply: filterlim_opp_f.
+
+  move => P.
+  change (is_lim_seq (fun n : nat => (1 - Cpow z  S n) / (1 - z)) (/(1-z))).
+  replace ((/ (1 - q))) with (real (Rbar_mult (Rbar_minus 1 0) (/ (1 - q)))).
+  unfold Rdiv.
+  apply (is_lim_seq_scal_r (fun n : nat => (1 - q ^ S n)) (/ (1 - q)) (Rbar_minus 1 0)).
+  apply is_lim_seq_minus'.
+  by apply is_lim_seq_const.
+  apply (is_lim_seq_incr_1 (fun n => q^n)).
+  by apply is_lim_seq_geom.
+  simpl; ring.
 Qed.

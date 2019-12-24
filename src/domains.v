@@ -51,6 +51,16 @@ Ltac change_topology :=
   | auto
   ]).
 
+Lemma abs_le_C_Normed: forall z, filter_le 
+  (@locally (AbsRing_UniformSpace C_AbsRing) z)
+  (@locally C_NormedModule z) .
+Proof.
+  move => z P H.
+  apply/ prod_c_topology_eq.
+  apply H.
+Qed.
+
+  
 Lemma continous_C_AbsRing: forall U f z, 
   @continuous U (AbsRing_UniformSpace C_AbsRing) f z <-> 
   @continuous U C_UniformSpace f z.

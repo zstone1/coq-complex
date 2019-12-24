@@ -519,11 +519,3 @@ Proof.
   apply H.
   apply t0close.
 Qed.
-
-Lemma filterlim_compose_path forall D
-  (f_: T -> C -> C) flim F {FF: Filter F} (g: R -> C),
-  open D,
-  (exists z0, D z0) ->
-  filterlim (f_) F (compactly flim) ->
-  (exists E, fam_union Fam E /\ (forall t':T', E (g t'))) ->
-  filterlim (fun t u => f_ t (g u)) F (@locally (fct_UniformSpace T' V) (fun u => flim (g u))) .

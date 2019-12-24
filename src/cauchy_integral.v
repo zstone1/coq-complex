@@ -919,7 +919,7 @@ Fixpoint Cpow (z: C) (n: nat) :=
   end .
 Infix "^" := Cpow : C_scope.
 
-Lemma Cpow_cmod : forall z n, Cmod (z^n)%C = ((Cmod z)^n)%R.
+Lemma Cpow_cmod : forall z n, Cmod (Cpow z n)%C = (pow (Cmod z) n).
 Proof.
   move => z.
   elim.
