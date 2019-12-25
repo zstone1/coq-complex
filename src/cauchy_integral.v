@@ -1229,7 +1229,7 @@ Proof.
 Qed.
 
 
-Theorem cauchy_integral_formula: forall f (r r': posreal) a, 
+Theorem cauchy_integral_formula_center: forall f (r r': posreal) a, 
   r' < r ->
   CHolo_on (ball a r) f ->
   1/(2*PI* Ci) * CInt (circC a r') (fun z => f(z) / (z-a))
@@ -1314,4 +1314,93 @@ Proof.
     lra.
 Qed.
 
+Lemma Cmod_cos_sin: forall t, Cmod (cos t, sin t) = 1.
+Proof.
+  move => t.
+  rewrite /Cmod /fst /snd Rplus_comm -?Rsqr_pow2 sin2_cos2 sqrt_1 //=.
+Qed.
+
+Theorem cauchy_integral_formula: forall f (r r': posreal) a, 
+  r' < r ->
+  CHolo_on (ball a r) f ->
+  forall z, 
+    ball a r' z -> 
+    1/(2*PI* Ci) * CInt (circC a r') (fun w => f(w) / (w-z))
+    = f(z).
+Proof.
+  move => f r r' a r'bd [f' holo]. 
+  move => z zball.
+  pose delr' := (r' - (Cmod (z -a)%C))%R.
+  have delrpos: 0 < delr'. {
+    rewrite /ball /= /AbsRing_ball /= /abs /= /minus /plus/opp /= 
+            -/(Cminus _ _) in zball.
+    rewrite /delr'.
+    have ? := Cmod_ge_0(z-a).
+    lra.
+  }
+  have ?:= cond_pos r.
+  have ?:= cond_pos r'.
+  have ?: 1 < r/r' by apply Rlt_div_r; lra.
+  have ?:= @Cmod_ge_0 (z-a).
+  pose delr := mkposreal _ delrpos.
+  have?: delr <= r'. {
+    rewrite /delr /delr' /=.
+    lra.
+  }
+
+  rewrite -[RHS](@cauchy_integral_formula_center f delr (pos_div_2 delr)); simpl.
+  2: lra.
+  2: { 
+    exists f'; move => z' H. 
+    apply holo. 
+    apply: ball_le; 
+      first (left; apply r'bd).
+    unfold_alg.
+    rewrite -/(Cminus _ _).
+    apply: Rle_lt_trans.
+    have ->: (z' - a = (z' - z) + (z - a));
+      first field_simplify_eq; auto.
+    apply: Cmod_triangle.
+    rewrite /ball /= /AbsRing_ball /= /abs /= /minus /plus /opp /= 
+            -/(Cminus _ _) /delr' in H.
+
+    lra.
+  }
+  pose o (r0:R) := (r0 * z + (1-r0) * a).
+  pose l (r0:R) := (r0 * (delr) + (1-r0)*r')%R.
+  f_equal.
+  have := @path_independence 
+              (-PI)%R (3*PI) 0 (2*PI)
+              (-1) (r/r') 0 1
+              f f' 
+              (fun r0 t0 => (o(r0)).1 + (l(r0)) * cos t0)%R
+              (fun r0 t0 => (o(r0)).2 + (l(r0)) * sin t0)%R.
+  simpl.
+  have?:= PI_RGT_0.
+  case; first lra.
+  1,2: rewrite Rmin_left;last (lra);
+       rewrite Rmax_right; lra.
+  1,2: rewrite Rmin_left; last (by lra);
+       rewrite Rmax_right; lra;
+       lra.
+  move => r0 t r0bd tbd.
+  rewrite ?Rmin_left in r0bd tbd; try lra;
+  rewrite ?Rmax_right in r0bd tbd; try lra.
+  split;[|split].
+  - apply holo.
+    rewrite /ball /= /AbsRing_ball /abs /= /minus /plus /opp /=.
+    rewrite /o -/(Cminus _ _) /l //= /delr'.
+    set p := (x in (Cmod x)).
+    replace p with (r0*(z-a) + (r' - r0 * Cmod (z-a) )*(cos t, sin t)). 2:{
+      set q := LHS.
+      simplify_as_R2 e q.
+      simplify_as_R2 e p.
+      auto.
+    }
+    apply: Rle_lt_trans.
+    apply: Cmod_triangle.
+    rewrite ?Cmod_mult Cmod_cos_sin Rmult_1_r.
+    
+  
+2: auto.
 End CauchyIntegral.

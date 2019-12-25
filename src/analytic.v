@@ -380,6 +380,7 @@ Proof.
     auto.
 Qed.
 
+
 Lemma is_series_geom_C: forall z, 
   Cmod z < 1 -> is_series (fun n => Cpow z n) (1/(1-z)).
 Proof.
@@ -409,7 +410,7 @@ Proof.
   4: apply: filterlim_filter_le_2.
   5: apply: filterlim_filter_le_1.
   6: apply: Hierarchy.filterlim_mult.
-  6: apply (0,0).
+  6: apply (RtoC 0).
   6: apply (/(1-z)).
   4: rewrite /mult //= Cmult_0_l //=.
   4: move => P H; apply/ prod_c_topology_eq; auto.
@@ -419,30 +420,55 @@ Proof.
        1: apply F1.
        auto.
   }
-  Set Printing Implicit.
   2: apply: filter_prod_filter .
   2: apply: abs_locally_filter.
-  
-  rewrite -Copp_0.
-
-       
-    move => P H. apply/ prod_c_topology_eq; auto.
-  Set Printing Implicit.
-  4: have:=  (@Hierarchy.filterlim_mult (C_AbsRing) (zero) (Cinv (1-z))).
-  Locate filterlim_mult.
-  4: apply: filterlim_mult.
-  2: apply fiterlim_prod.
-  rewrite -Copp_0.
-  apply: filterlim_opp_f.
-
-  move => P.
-  change (is_lim_seq (fun n : nat => (1 - Cpow z  S n) / (1 - z)) (/(1-z))).
-  replace ((/ (1 - q))) with (real (Rbar_mult (Rbar_minus 1 0) (/ (1 - q)))).
-  unfold Rdiv.
-  apply (is_lim_seq_scal_r (fun n : nat => (1 - q ^ S n)) (/ (1 - q)) (Rbar_minus 1 0)).
-  apply is_lim_seq_minus'.
-  by apply is_lim_seq_const.
-  apply (is_lim_seq_incr_1 (fun n => q^n)).
-  by apply is_lim_seq_geom.
-  simpl; ring.
+  apply: filterlim_comp.
+  2: apply: filterlim_filter_le_2. 
+  3: apply: filterlim_opp. 
+  3: apply zero.
+  2: rewrite /opp /zero //= Copp_0; move => P H; 
+     apply/ prod_c_topology_eq; auto.
+  apply filterlim_norm_zero .
+  rewrite /norm /=. 
+  eapply filterlim_ext. {
+    move => x.
+    rewrite Cmod_mult Cpow_cmod.
+    reflexivity.
+  }
+  have Hq' : Cmod z = Rabs (Cmod z) by
+    rewrite Rabs_pos_eq;[ auto | apply Cmod_ge_0] .
+  rewrite Hq' in Hq.
+  apply: filterlim_comp_2.
+  1: apply filterlim_const.
+  1: apply: is_lim_seq_geom _ Hq.
+  replace (locally 0) with (locally (Cmod z * 0)%R).
+  2: f_equal; lra.
+  apply: Hierarchy.filterlim_mult.
 Qed.
+
+Definition PCoef := 1/(2*PI* Ci).
+
+Theorem holo_analytic : forall (f:C -> C) (r r': posreal ) z, 
+  r' < r ->
+  CHolo_on (ball z r) f ->
+  forall a, ball z r' a ->
+  
+  @is_pseries 
+    C_AbsRing
+    C_NormedModule
+    (fun n => PCoef * CInt (circC a r') 
+      (fun w => f(w)/(Cpow (w-a) n))
+    ) a (f a).
+Proof.
+  move => f r r' z r'ler CHolo a aball.
+
+  `Begin eq (f(z)). {
+
+  | {( PCoef * CInt (circC z r') ( fun w => (f w)/(w-z)) )} 
+    rewrite (@cauchy_integral_formula f r); auto.
+
+  | {( PCoef * CInt _ (fun w => (f w)/((w-a) - (z-a))) )} idtac.
+    rewrite (@cauchy_integral_formula f r); auto.
+
+  }
+
