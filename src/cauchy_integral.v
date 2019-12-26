@@ -63,6 +63,16 @@ Proof.
   - auto_derive; auto. 
   - apply continuous_const. 
 Qed.
+Lemma differentiable_pt_proj1: forall f x y,
+  ex_derive f x -> 
+  differentiable_pt (fun p q => f p) x y.
+Proof.
+  move => f x y [??].
+  eexists; eexists.
+  apply: differentiable_pt_lim_proj1_0 .
+  apply/ is_derive_Reals.
+  eauto.
+Qed.
 
 Lemma differentiable_pt_ext: forall f g x y,
   (forall p q, f p q = g p q) -> 
@@ -75,7 +85,30 @@ Proof.
   - exists pos_half => *. symmetry. apply H.
   - eauto.
 Qed.
-    
+
+Lemma differentiable_pt_ext_loc: forall f g x y,
+  locally_2d (fun p q => f p q = g p q) x y -> 
+  differentiable_pt f x y <-> differentiable_pt g x y.
+Proof.
+  move => f g x y /locally_2d_locally loc_eq.
+  split; move => [? [? /filterdiff_differentiable_pt_lim G]]; eexists; eexists;
+  apply/ filterdiff_differentiable_pt_lim;
+  [ |
+  have {}loc_eq: locally (x,y) (fun z => g z.1 z.2 = f z.1 z.2) by
+      apply: filter_imp loc_eq;
+      move => *; congruence
+  ];
+  apply: (filterdiff_ext_loc _ _ _ loc_eq).
+  - apply locally_filter.
+  - move => p /is_filter_lim_locally_unique <- //=.
+    move: loc_eq => /locally_singleton //=.
+  - eauto.
+  - apply locally_filter.
+  - move => p /is_filter_lim_locally_unique <- //=.
+    move: loc_eq => /locally_singleton //=.
+  - eauto.
+Qed.
+
 Lemma differentiable_pt_plus: forall f k x y,
   differentiable_pt f x y -> differentiable_pt (fun p q => k + f p q) x y.
 Proof.
@@ -94,43 +127,41 @@ Proof.
   - exists d1; exists d2; auto.
 Qed.
 
+Ltac replace_Derive := 
+  eapply continuity_2d_pt_ext;[ move => x y;
+    eapply Derive_ext => z;
+      symmetry;
+      apply is_derive_unique;
+      auto_derive; auto;
+      field_simplify; auto | ];
+  eapply continuity_2d_pt_ext;[ move => x y;
+      symmetry;
+      apply is_derive_unique;
+      auto_derive; auto;
+      field_simplify; auto | ].
 
-Lemma smooth_circ: forall z r t, 
-  SmoothPath (fun r t => z.1 + r * cos t)%R ( fun r t => z.2 + r * sin t)%R r t.
+Ltac rerwite_under f := 
+  let l := fresh in 
+  under differentiable_pt_ext => p q do (
+    set l := Derive _ _;
+    replace l with f
+  )
+  ;
+  rewrite /l; symmetry;
+  apply: is_derive_unique;
+  auto_derive; auto; field_simplify; auto;
+  apply: differentiable_pt_scal;
+  auto_derive; auto.
+Lemma smooth_circ_origin: forall r t, 
+  SmoothPath (fun r t => r * cos t)%R ( fun r t => r * sin t)%R r t.
 Proof.
-
-  Ltac rerwite_under f := 
-    let l := fresh in 
-    under differentiable_pt_ext => p q do (
-      set l := Derive _ _;
-      replace l with f
-    )
-    ;
-    rewrite /l; symmetry;
-    apply: is_derive_unique;
-    auto_derive; auto; field_simplify; auto;
-    apply: differentiable_pt_scal;
-    auto_derive; auto.
-  Ltac replace_Derive := 
-    eapply continuity_2d_pt_ext;[ move => x y;
-      eapply Derive_ext => z;
-        symmetry;
-        apply is_derive_unique;
-        auto_derive; auto;
-        field_simplify; auto | ];
-    eapply continuity_2d_pt_ext;[ move => x y;
-        symmetry;
-        apply is_derive_unique;
-        auto_derive; auto;
-        field_simplify; auto | ].
   move => r t; repeat split; [exists pos_half | exists pos_half | .. ]; repeat split.
   7-10: 
     replace_Derive;
     auto;
     apply: differentiable_continuity_pt;
     apply differentiable_pt_proj2; auto_derive; auto.
-  - apply: differentiable_pt_plus.
-    apply differentiable_pt_scal; auto_derive; auto.
+  - apply differentiable_pt_scal; auto_derive; auto.
   - apply (@differentiable_pt_ext _ (fun p q => (p * (- sin q))));
     [ move => *; apply:is_derive_unique; auto_derive; auto; field_simplify; auto
     | apply: differentiable_pt_scal; auto_derive; auto
@@ -140,8 +171,7 @@ Proof.
     | apply: differentiable_pt_proj2; auto_derive; auto
     ].
     
-  - apply differentiable_pt_plus.
-    apply differentiable_pt_scal; auto_derive; auto.
+  - apply differentiable_pt_scal; auto_derive; auto.
   - apply (@differentiable_pt_ext _ (fun p q => (p * (cos q))));
     [ move => *; apply:is_derive_unique; auto_derive; auto; field_simplify; auto
     | apply: differentiable_pt_scal; auto_derive; auto
@@ -152,6 +182,219 @@ Proof.
     ].
 Qed.
 
+Lemma smooth_line: forall z w r t, 
+  SmoothPath (fun r t => r * z.1 + (1-r) * w.1 )%R 
+             (fun r t => r * z.2 + (1-r) * w.2 )%R r t.
+Proof.
+  move => r t; repeat split; [exists pos_half | exists pos_half | .. ]; repeat split.
+  7-10: 
+    replace_Derive;
+    auto;
+    apply: differentiable_continuity_pt;
+    apply differentiable_pt_proj2; auto_derive; auto.
+  - apply: differentiable_pt_proj1.
+    auto_derive. 
+    auto.
+  - eapply differentiable_pt_ext.
+    move => *.
+    apply Derive_const.
+    apply: differentiable_pt_proj1.
+    auto_derive.
+    auto.
+  - apply: differentiable_pt_proj1.
+    eapply ex_derive_ext.
+    symmetry.
+    apply is_derive_unique.
+    auto_derive; auto.
+    reflexivity.
+    auto_derive.
+    auto.
+  - apply: differentiable_pt_proj1.
+    auto_derive.
+    auto.
+  - eapply differentiable_pt_ext.
+    move => *.
+    apply Derive_const.
+    apply: differentiable_pt_proj1.
+    auto_derive.
+    auto.
+  - apply: differentiable_pt_proj1.
+    eapply ex_derive_ext.
+    symmetry.
+    apply is_derive_unique.
+    auto_derive; auto.
+    reflexivity.
+    auto_derive.
+    auto.
+Qed.
+
+Lemma differentiable_pt_rplus : forall x y, differentiable_pt Rplus x y .
+Proof.
+  move => x y.
+  exists 1; exists 1.
+  apply/ filterdiff_differentiable_pt_lim.
+  apply: filterdiff_ext_lin.
+  2: move => z; rewrite ?Rmult_1_r; reflexivity.
+  apply: filterdiff_plus.
+Qed.
+
+Lemma smooth_path_plus: forall g1 g2 h1 h2 r t, 
+  SmoothPath g1 g2 r t -> 
+  SmoothPath h1 h2 r t -> 
+  SmoothPath (fun r' t' => g1 r' t' + h1 r' t')%R
+             (fun r' t' => g2 r' t' + h2 r' t')%R
+             r t.
+Proof.
+  move => g1 g2 h1 h2 r t [gl1 [gl2 gl3]] [hl1 [hl2 hl3]].
+  split;[|split].
+  - have H:= locally_2d_and _ _ r t gl1 hl1.
+    apply: locally_2d_impl_strong H.
+    apply locally_2d_forall.
+    move => u v.
+    move => H.
+    split;[|split].
+    + apply: differentiable_pt_comp.
+      1: apply differentiable_pt_rplus.
+      all: move: H => /locally_2d_singleton; tauto.
+    + eapply differentiable_pt_ext_loc.
+      1: apply: locally_2d_impl H;
+         apply locally_2d_forall => p q H;
+         rewrite Derive_plus;[
+           reflexivity
+           | apply: (@differentiable_pt_ex_right g1); tauto 
+           | apply: (@differentiable_pt_ex_right h1); tauto 
+         ].
+      apply: differentiable_pt_comp.
+      1: apply differentiable_pt_rplus.
+      all: move: H => /locally_2d_singleton; tauto.
+    + eapply differentiable_pt_ext_loc.
+      1: apply: locally_2d_impl H;
+         apply locally_2d_forall => p q H;
+         rewrite Derive_plus;[
+           reflexivity
+           | apply: (@differentiable_pt_ex_left g1); tauto 
+           | apply: (@differentiable_pt_ex_left h1); tauto 
+         ].
+      apply: differentiable_pt_comp.
+      1: apply: differentiable_pt_rplus.
+      all: move: H => /locally_2d_singleton; tauto.
+  - have H:= locally_2d_and _ _ r t gl2 hl2.
+    apply: locally_2d_impl_strong H.
+    apply locally_2d_forall.
+    move => u v.
+    move => H.
+    split;[|split].
+    + apply: differentiable_pt_comp.
+      1: apply differentiable_pt_rplus.
+      all: move: H => /locally_2d_singleton; tauto.
+    + eapply differentiable_pt_ext_loc.
+      1: apply: locally_2d_impl H;
+         apply locally_2d_forall => p q H;
+         rewrite Derive_plus;[
+           reflexivity
+           | apply: (@differentiable_pt_ex_right g2); tauto 
+           | apply: (@differentiable_pt_ex_right h2); tauto 
+         ].
+      apply: differentiable_pt_comp.
+      1: apply differentiable_pt_rplus.
+      all: move: H => /locally_2d_singleton; tauto.
+    + eapply differentiable_pt_ext_loc.
+      1: apply: locally_2d_impl H;
+         apply locally_2d_forall => p q H;
+         rewrite Derive_plus;[
+           reflexivity
+           | apply: (@differentiable_pt_ex_left g2); tauto 
+           | apply: (@differentiable_pt_ex_left h2); tauto 
+         ].
+      apply: differentiable_pt_comp.
+      1: apply differentiable_pt_rplus.
+      all: move: H => /locally_2d_singleton; tauto.
+  - have H1:= locally_2d_and _ _ r t gl1 hl1.
+    have H2:= locally_2d_and _ _ r t gl2 hl2.
+    repeat split.
+    + apply: continuity_2d_pt_ext_loc.
+      apply: locally_2d_impl_strong H1.
+      apply locally_2d_forall => p q /locally_2d_1d_const_y H.
+      apply: Derive_ext_loc.
+      apply: filter_imp H => p' H.
+      rewrite Derive_plus;
+      [ reflexivity
+      | apply: (@differentiable_pt_ex_right g1); tauto 
+      | apply: (@differentiable_pt_ex_right h1); tauto 
+      ].
+      apply: continuity_2d_pt_ext_loc.
+      apply: locally_2d_impl H1.
+      apply locally_2d_forall => p q H.
+      rewrite Derive_plus;
+      [ reflexivity
+      | apply: (@differentiable_pt_ex_left (fun p => Derive (g1 p))); tauto
+      | apply: (@differentiable_pt_ex_left (fun p => Derive (h1 p))); tauto
+      ].
+      apply continuity_2d_pt_plus; tauto.
+    + apply: continuity_2d_pt_ext_loc.
+      apply: locally_2d_impl_strong H1.
+      apply locally_2d_forall => p q /locally_2d_1d_const_x H.
+      apply: Derive_ext_loc.
+      apply: filter_imp H => p' H.
+      rewrite Derive_plus;
+      [ reflexivity
+      | apply: (@differentiable_pt_ex_left g1); tauto 
+      | apply: (@differentiable_pt_ex_left h1); tauto 
+      ].
+      apply: continuity_2d_pt_ext_loc.
+      apply: locally_2d_impl H1.
+      apply locally_2d_forall => p q H.
+      rewrite Derive_plus;
+      [ reflexivity
+      | apply: (@differentiable_pt_ex_right (fun x y => Derive (g1 ^~ y) x)); tauto
+      | apply: (@differentiable_pt_ex_right (fun x y => Derive (h1 ^~ y) x)); tauto
+      ].
+      apply continuity_2d_pt_plus; tauto.
+      
+    + apply: continuity_2d_pt_ext_loc.
+      apply: locally_2d_impl_strong H2.
+      apply locally_2d_forall => p q /locally_2d_1d_const_y H.
+      apply: Derive_ext_loc.
+      apply: filter_imp H => p' H.
+      rewrite Derive_plus;
+      [ reflexivity
+      | apply: (@differentiable_pt_ex_right g2); tauto 
+      | apply: (@differentiable_pt_ex_right h2); tauto 
+      ].
+      apply: continuity_2d_pt_ext_loc.
+      apply: locally_2d_impl H2.
+      apply locally_2d_forall => p q H.
+      rewrite Derive_plus;
+      [ reflexivity
+      | apply: (@differentiable_pt_ex_left (fun p => Derive (g2 p))); tauto
+      | apply: (@differentiable_pt_ex_left (fun p => Derive (h2 p))); tauto
+      ].
+      apply continuity_2d_pt_plus; tauto.
+
+    + apply: continuity_2d_pt_ext_loc.
+      apply: locally_2d_impl_strong H2.
+      apply locally_2d_forall => p q /locally_2d_1d_const_x H.
+      apply: Derive_ext_loc.
+      apply: filter_imp H => p' H.
+      rewrite Derive_plus;
+      [ reflexivity
+      | apply: (@differentiable_pt_ex_left g2); tauto 
+      | apply: (@differentiable_pt_ex_left h2); tauto 
+      ].
+      apply: continuity_2d_pt_ext_loc.
+      apply: locally_2d_impl H2.
+      apply locally_2d_forall => p q H.
+      rewrite Derive_plus;
+      [ reflexivity
+      | apply: (@differentiable_pt_ex_right (fun x y => Derive (g2 ^~ y) x)); tauto
+      | apply: (@differentiable_pt_ex_right (fun x y => Derive (h2 ^~ y) x)); tauto
+      ].
+      apply continuity_2d_pt_plus; tauto.
+Qed.
+
+Lemma smooth_move_circ: forall z w r t, 
+  SmoothPath (fun r t => r * z.1 + (1-r) * w.1 + r * cos t )%R 
+             (fun r t => r * z.2 + (1-r) * w.2 + r * sin t)%R r t.
 Open Scope C.
 Definition CHolo f f' z := 
   Holo f f' z /\ continuous f' z.
