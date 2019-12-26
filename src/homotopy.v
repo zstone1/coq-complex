@@ -1,4 +1,3 @@
-
 Require Import Reals Psatz Lra RelationClasses.
 From Coquelicot Require Import Continuity 
   Rcomplements Derive Hierarchy AutoDerive Rbar Complex
@@ -139,22 +138,38 @@ Proof.
   - eauto.
 Qed.
 
-Lemma differentiable_pt_plus: forall f k x y,
-  differentiable_pt f x y -> differentiable_pt (fun p q => k + f p q) x y.
+Lemma differentiable_pt_mult: forall x y,
+  differentiable_pt Rmult x y .
 Proof.
-  move => f k x y [d1 [d2 D]].
-  apply differentiable_pt_comp.
-  - exists 1. exists 1. apply filterdiff_differentiable_pt_lim. 
-    eapply filterdiff_ext_lin.
-    apply filterdiff_linear.
-    apply: is_linear_plus.
-    move => *; simpl; lra.
-  - exists 0. exists 0; apply filterdiff_differentiable_pt_lim. 
-    eapply filterdiff_ext_lin.
-    apply: filterdiff_const.
-    move => * //=.
-    rewrite /zero //=; lra.
-  - exists d1; exists d2; auto.
+  move => x y.
+  exists y; exists x.
+  apply/ filterdiff_differentiable_pt_lim.
+  apply: filterdiff_ext_lin.
+  2: move => z; rewrite [x in _ + x]Rmult_comm; reflexivity.
+  apply: filterdiff_mult_fct.
+  1: unfold_alg; move => *; field_simplify; auto.
+
+  - split; first by apply is_linear_fst.
+    move => p /is_filter_lim_locally_unique <- //= eps.
+    exists pos_half => *.
+    unfold_alg.
+    set q := (x in Rabs x).
+    simplify_R q.
+    rewrite Rabs_R0.
+    apply Rmult_le_pos.
+    1: left; apply cond_pos.
+    apply Cmod_ge_0.
+
+  - split; first by apply is_linear_snd.
+    move => p /is_filter_lim_locally_unique <- //= eps.
+    exists pos_half => *.
+    unfold_alg.
+    set q := (x in Rabs x).
+    simplify_R q.
+    rewrite Rabs_R0.
+    apply Rmult_le_pos.
+    1: left; apply cond_pos.
+    apply Cmod_ge_0.
 Qed.
 
 Ltac replace_Derive := 
@@ -182,6 +197,113 @@ Ltac rerwite_under f :=
   auto_derive; auto; field_simplify; auto;
   apply: differentiable_pt_scal;
   auto_derive; auto.
+Lemma smooth_cos_between: forall r1 r2 r t, 
+  SmoothPath' (fun r' t' => (r' * r1 + (1 - r') * r2) * cos t') r t.
+Proof.
+  move => r t; repeat split. 
+  4,5: 
+    replace_Derive;
+    auto;
+    apply: differentiable_continuity_pt;
+    apply differentiable_pt_proj2; auto_derive; auto.
+  - apply differentiable_pt_comp. 
+    3: apply differentiable_pt_proj2; auto_derive; auto.
+    2: apply differentiable_pt_proj1; auto_derive; auto.
+    1: apply differentiable_pt_mult.
+  
+  - eapply differentiable_pt_ext. 
+    move => *.
+      rewrite Derive_mult.
+      2,3: auto_derive; auto.
+      rewrite Derive_const.
+      rewrite Rmult_0_l Rplus_0_l.
+    reflexivity.
+    apply differentiable_pt_comp.
+    1: apply differentiable_pt_mult.
+    1: apply differentiable_pt_proj1; auto_derive; auto.
+    apply differentiable_pt_proj2; auto_derive; auto.
+    eapply ex_derive_ext => [t'|].
+      symmetry.
+      apply is_derive_unique;
+      auto_derive; auto.
+    reflexivity.
+    auto_derive.
+    auto.
+  - eapply differentiable_pt_ext. 
+    move => *.
+      rewrite Derive_mult.
+      2,3: auto_derive; auto.
+      rewrite Derive_const.
+      rewrite Rmult_0_r Rplus_0_r.
+    reflexivity.
+    apply differentiable_pt_comp.
+    1: apply differentiable_pt_mult.
+    2: apply differentiable_pt_proj2; auto_derive; auto.
+
+    apply differentiable_pt_proj1; auto_derive; auto.
+    eapply ex_derive_ext => [t'|].
+      symmetry.
+      apply is_derive_unique;
+      auto_derive; auto.
+    reflexivity.
+    auto_derive.
+    auto.
+Qed.
+    
+Lemma smooth_sin_between: forall r1 r2 r t, 
+  SmoothPath' (fun r' t' => (r' * r1 + (1 - r') * r2) * sin t') r t.
+Proof.
+  move => r t; repeat split. 
+  4,5: 
+    replace_Derive;
+    auto;
+    apply: differentiable_continuity_pt;
+    apply differentiable_pt_proj2; auto_derive; auto.
+  - apply differentiable_pt_comp. 
+    3: apply differentiable_pt_proj2; auto_derive; auto.
+    2: apply differentiable_pt_proj1; auto_derive; auto.
+    1: apply differentiable_pt_mult.
+  
+  - eapply differentiable_pt_ext. 
+    move => *.
+      rewrite Derive_mult.
+      2,3: auto_derive; auto.
+      rewrite Derive_const.
+      rewrite Rmult_0_l Rplus_0_l.
+    reflexivity.
+    apply differentiable_pt_comp.
+    1: apply differentiable_pt_mult.
+    1: apply differentiable_pt_proj1; auto_derive; auto.
+    apply differentiable_pt_proj2; auto_derive; auto.
+    eapply ex_derive_ext => [t'|].
+      symmetry.
+      apply is_derive_unique;
+      auto_derive; auto.
+    reflexivity.
+    auto_derive.
+    auto.
+  - eapply differentiable_pt_ext. 
+    move => *.
+      rewrite Derive_mult.
+      2,3: auto_derive; auto.
+      rewrite Derive_const.
+      rewrite Rmult_0_r Rplus_0_r.
+    reflexivity.
+    apply differentiable_pt_comp.
+    1: apply differentiable_pt_mult.
+    2: apply differentiable_pt_proj2; auto_derive; auto.
+
+    apply differentiable_pt_proj1; auto_derive; auto.
+    eapply ex_derive_ext => [t'|].
+      symmetry.
+      apply is_derive_unique;
+      auto_derive; auto.
+    reflexivity.
+    auto_derive.
+    auto.
+Qed.
+
+
 Lemma smooth_cos: forall r t, 
   SmoothPath' (fun r t => r * cos t) r t.
 Proof.
@@ -221,6 +343,16 @@ Proof.
     | apply: differentiable_pt_proj2; auto_derive; auto
     ].
 Qed.
+Lemma differentiable_pt_rplus : forall x y, differentiable_pt Rplus x y .
+Proof.
+  move => x y.
+  exists 1; exists 1.
+  apply/ filterdiff_differentiable_pt_lim.
+  apply: filterdiff_ext_lin.
+  2: move => z; rewrite ?Rmult_1_r; reflexivity.
+  apply: filterdiff_plus.
+Qed.
+
 
 Lemma smooth_line: forall z w r t, 
   SmoothPath' (fun r t => r * z + (1-r) * w ) r t.
@@ -249,17 +381,6 @@ Proof.
     auto_derive.
     auto.
 Qed.
-
-Lemma differentiable_pt_rplus : forall x y, differentiable_pt Rplus x y .
-Proof.
-  move => x y.
-  exists 1; exists 1.
-  apply/ filterdiff_differentiable_pt_lim.
-  apply: filterdiff_ext_lin.
-  2: move => z; rewrite ?Rmult_1_r; reflexivity.
-  apply: filterdiff_plus.
-Qed.
-
 Lemma smooth_path_plus: forall g h r t, 
   locally_2d (SmoothPath' g) r t -> 
   locally_2d (SmoothPath' h) r t -> 
@@ -417,11 +538,30 @@ Proof.
     apply smooth_translate.
     apply locally_2d_forall.
     move => *.
-    apply smooth_cos.
+    apply: smooth_cos.
   - apply locally_2d_forall.
     move => u v.
     apply smooth_translate.
     apply locally_2d_forall.
     move => *.
     apply smooth_sin.
+Qed.
+
+Lemma smooth_translate_circ: forall z w r1 r2 r t,
+  SmoothPath (fun r' t' => (r' * z.1 + (1-r')*w.1 + (r'*r1 + (1-r')*r2) * cos t'))
+             (fun r' t' => (r' * z.2 + (1-r')*w.2 + (r'*r1 + (1-r')*r2) * sin t')) 
+             r t.
+Proof.
+  move => z w r1 r2 r t.
+  apply smoothpath'_smoothpath.
+  - have := smooth_line z.1 w.1.
+    move => /(locally_2d_forall _ r t) H'.
+    have := smooth_cos_between r1 r2. 
+    move => /(locally_2d_forall _ r t) H''.
+    apply: smooth_path_plus H' H''.
+  - have := smooth_line z.2 w.2.
+    move => /(locally_2d_forall _ r t) H'.
+    have := smooth_sin_between r1 r2. 
+    move => /(locally_2d_forall _ r t) H''.
+    apply: smooth_path_plus H' H''.
 Qed.
