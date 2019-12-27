@@ -386,7 +386,7 @@ Section DeriveHomotopy .
   Qed.
 
 
-  Lemma diff_integrand: forall r t,
+  Lemma diff_integrand_t: forall r t,
     c <= r <= d ->
     Rmin a b <= t <= Rmax a b ->
     locally_2d (
@@ -413,6 +413,32 @@ Section DeriveHomotopy .
     1: apply differentiable_pt_proj2; apply ex_derive_id.
   Qed.
 
+  Lemma diff_integrand_r: forall r t,
+    c <= r <= d ->
+    Rmin a b <= t <= Rmax a b ->
+    locally_2d (
+        differentiable_pt (fun r0 t0 => Re(f (g r0 t0) * g_r r0 t0))) r t.
+  Proof.
+    move => r t rbd tbd.
+    apply: locally_2d_impl (locally_nice  rbd tbd).
+    apply locally_2d_forall.
+    move => r0 t0 [+  
+      [[?[?[?[??]]]] [[?[?[?[??]]]]] _] ].
+    copy => /holo_differentiable_pt_lim_real Du 
+            /holo_differentiable_pt_lim_imaginary Dv.
+    apply differentiable_pt_comp;
+    simpl in *.
+    1: apply differentiable_pt_minus.
+    all: apply: differentiable_pt_comp.
+    1,4: apply differentiable_pt_mult.
+    1: apply differentiable_pt_comp.
+    2,3,4,6: now auto.
+    all: apply differentiable_pt_comp.
+    5,6: now auto.
+    1,4: eexists;eexists; now eauto.
+    1: apply differentiable_pt_proj1; apply ex_derive_id.
+    1: apply differentiable_pt_proj2; apply ex_derive_id.
+  Qed.
   Local Ltac foo x y := 
     let smooth := fresh in 
       move => /(_ x y)[+ smooth];
@@ -430,6 +456,17 @@ Section DeriveHomotopy .
     try apply continuity_2d_pt_opp;
     simpl in *; auto).
 
+  Ltac expand_nice := 
+    let holo := fresh in 
+      move => [holo [
+         [?[?[?[??]]]] [
+         [?[?[?[??]]]] +]]];
+      copy => /(continuous_comp _ fst) /= Cu';
+      move => /(continuous_comp _ snd) /= Cv';
+      move: holo;
+      copy => /holo_differentiable_pt_lim_imaginary ?
+              /holo_differentiable_pt_lim_real ?.
+
   Lemma D: forall r, 
     c <= r <= d ->  
       is_derive (fun r0 => RInt (fun t0 => Re(f (g r0 t0) * g_t r0 t0 ))%C a b) r 
@@ -439,7 +476,7 @@ Section DeriveHomotopy .
     apply is_derive_RInt_param.
     - apply: unif_r; auto.
       move => r' t' r'bd t'bd.
-      apply: locally_2d_impl (diff_integrand r'bd t'bd).
+      apply: locally_2d_impl (diff_integrand_t r'bd t'bd).
       apply: locally_2d_forall.
       move => r0 t0 /differentiable_pt_ex_derive [_ H].
       tauto.
@@ -447,12 +484,11 @@ Section DeriveHomotopy .
       move: locally_nice => /(_ _ _ rbd tbd) nice.
       eapply continuity_2d_pt_ext_loc. {
         apply: locally_2d_impl nice.
-        apply: locally_2d_forall => r0 t0 [holo [
-           [?[?[?[??]]]] [
-           [?[?[?[??]]]] _]]].
-        move: holo.
-        copy => /holo_differentiable_pt_lim_imaginary ?.
-        copy => /holo_differentiable_pt_lim_real ?.
+        apply: locally_2d_forall => r0 t0. 
+        copy.
+        expand_nice.
+        
+        move => [+ _].
         copy => /holo_differentiable_pt_lim_real
                 /differentiable_pt_lim_unique [Du'1 Du'2]
                 /holo_differentiable_pt_lim_imaginary
@@ -465,15 +501,8 @@ Section DeriveHomotopy .
         reflexivity.
         all: repeat diff_help; auto.
       }
-      move: nice => /locally_2d_singleton
-      [holo [
-         [?[?[?[??]]]] [
-         [?[?[?[??]]]] +]]].
-      copy => /(continuous_comp _ fst) //= Cu'.
-      move => /(continuous_comp _ snd) //= Cv'.
-      move: holo.
-      copy => /holo_differentiable_pt_lim_imaginary ?
-              /holo_differentiable_pt_lim_real ?.
+      move: nice => /locally_2d_singleton.
+      expand_nice.
       simpl in *.
       auto_2d_continuous.
       1,3,7,9: apply continuity_2d_pt_comp.
@@ -489,7 +518,7 @@ Section DeriveHomotopy .
          exact H.
       apply: unif_r; auto.
       move => r' t' r'bd t'bd.
-      apply: locally_2d_impl (diff_integrand r'bd t'bd).
+      apply: locally_2d_impl (diff_integrand_t r'bd t'bd).
       apply locally_2d_forall.
       move => r0 t0 /differentiable_pt_ex_derive H.
       apply: ex_derive_continuous.
@@ -497,72 +526,54 @@ Section DeriveHomotopy .
   Qed.
 
   Lemma path_independence_part_3_real:
-      is_derive (fun r0 => RInt (fun t0 => Re(f (g r0 t0) * g_t r0 t0 ))%C a' b') r 
-     (Re(f (g r b') * g_r r b' - f (g r a') * g_r r a' )%C).
+    forall r, c <= r <= d ->
+      is_derive (fun r0 => RInt (fun t0 => Re(f (g r0 t0) * g_t r0 t0 ))%C a b) r 
+     (Re(f (g r b) * g_r r b - f (g r a) * g_r r a )%C).
   Proof.
-    have D := D.
+    move => r rbd.
+    have D := D rbd.
     erewrite RInt_ext in D. 
     2:{ move => x xbd.
       rewrite -(@path_independence_part_2_real u v u' v').
       reflexivity.
-      all: move: locally_nice => [del /(_ r (ball_center _ _) x)];
-      move => H; apply H; apply: inside; split; left; apply xbd.
+      apply smooth; lra.
+      move: (@holo_loc r x rbd (ltac:(lra))) => /locally_2d_singleton. 
+      auto.
     }
     rewrite RInt_Derive in D. 
     - apply: D.
-    - move => ? /inside ?.
-      apply: diff_t; 
-      first by (move: holo => /locally_singleton; apply).
-      by (move: smooth => /locally_singleton; apply).
+    - move => t0 t0bd. 
+      move: (diff_integrand_r rbd t0bd) => 
+        /locally_2d_singleton /differentiable_pt_ex_derive.
+        tauto.
     - simpl. 
-      move : locally_nice => [del H] t /inside  tbd.
+      move => t tbd.
       eapply continuous_ext_loc. {
-      pose del2 := (Rmin del (Rmin (Rabs(t-a)) (Rabs(t-b)))).
-      have del2ge: 0 < del2 by
-        apply Rmin_glb_lt; first (by apply: cond_pos);
-        apply Rmin_glb_lt; apply Rabs_pos_lt;
-        eapply Rminus_eq_contra; move => ?; subst;
-        destruct (Rle_dec a b);
-        try (rewrite Rmin_left in tbd; auto; lra);
-        try (rewrite Rmax_left in tbd; auto; lra);
-        try (rewrite Rmax_right in tbd; auto; lra);
-        try (rewrite Rmin_right in tbd; auto; lra).
-      pose del2pos := mkposreal del2 del2ge. 
-      exists del2pos => t' t'ball.
-      rewrite /ball /= /AbsRing_ball /= /ball /abs /= /minus /= 
-        /plus /= /opp /= -/(Rminus _ _) in t'ball.
-      move: t'ball => /(Rlt_le_trans _ _ _) /(_ (Rmin_r _ _)) t'bd.
-      have {}t'bd: (Rmin a b < t' < Rmax a b) 
-          by apply: (inside_internal (t:=t)).
-      move: H => /(_ r (ball_center _ _)); copy => H.
-      move => /(_ t' t'bd) [+ _].
-      copy => /holo_differentiable_pt_lim_real 
-              /differentiable_pt_lim_unique [Du'1 Du'2]
+        move : (locally_nice rbd tbd) => /locally_2d_1d_const_x H.
+        apply: filter_imp H => t'.
+        copy.
+        expand_nice.
+
+        move => [+ _].
+        copy => /holo_differentiable_pt_lim_real
+                /differentiable_pt_lim_unique [Du'1 Du'2]
                 /holo_differentiable_pt_lim_imaginary
                 /differentiable_pt_lim_unique [Dv'1 Dv'2].
-      simpl in *.
-      rewrite Derive_minus ?Derive_mult ?Derive_plus /=.
-      rewrite (@Derive_comp_2_right u g1 g2).
-      rewrite (@Derive_comp_2_right v g1 g2).
-      rewrite Du'1 Du'2 Dv'1 Dv'2.
-      reflexivity.
-      all: move: H; foo t' t'bd. 
+        simpl in *.
+        rewrite Derive_minus ?Derive_mult ?Derive_plus /=.
+        rewrite (@Derive_comp_2_right u g1 g2).
+        rewrite (@Derive_comp_2_right v g1 g2).
+        rewrite Du'1 Du'2 Dv'1 Dv'2.
+        reflexivity.
+        all: repeat diff_help; auto.
       }
-      move: H => /(_ r (ball_center _ _)).
-      foo t tbd.
-      move:c => [? [?[??]]].
-      move: cts => /(_ t tbd) .
-      copy.
-      rewrite /f'.
-      move => /(continuous_comp _ fst) //= Cu'.
-      move => /(continuous_comp _ snd) //= Cv'.
-      repeat auto_continuous_aux; simpl.
-  
-      1,3,6,8,10,13: apply continuous_comp_2.
+      move: (locally_nice rbd tbd) => /locally_2d_singleton.
+      expand_nice.
+      simpl in *.
+      repeat auto_continuous_aux.
+      1,3,8,10: apply continuous_comp_2.
       all: try now (apply: ex_derive_continuous; repeat diff_help; auto).
       all: try now (first [apply Cu' | apply Cv']; auto_continuous_aux).
-      1,2: apply/continuity_2d_pt_continuous; 
-           apply differentiable_continuity_pt; diff_help.
       2: repeat match goal with 
       | H: continuity_2d_pt _ _ _ |- _ => move: H
       end;
