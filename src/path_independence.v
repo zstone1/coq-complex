@@ -622,6 +622,32 @@ Proof.
     apply is_RInt_fct_extend_snd.
 Qed.
       
+Lemma is_derive_pair' {K : AbsRing} {M : NormedModule K} :
+  forall (f g: K -> M) (x: K) f' g', 
+  is_derive f x (f') ->
+  is_derive g x (g') ->
+  is_derive (fun q => (f q, g q)) x (f', g').
+Proof.
+  pose h (p q:M) := (p,q).
+  move => *.
+  apply: (filterdiff_comp_2 _ _ h).
+  - auto_derive_all. 
+  - auto_derive_all. 
+  - under (ext_filterdiff_d) => x.
+      have e: ((x.1, x.2)=x); first by case: x. 
+      rewrite e.
+    over.
+    rewrite /h //=.
+    under ext_filterdiff_loc.
+      { apply global_local; 
+        instantiate (1:= id); 
+        auto.
+      }
+      move => x _. 
+      have ->: ((x.1, x.2)=x); first by case: x.
+    over.
+    auto_derive_all.
+Qed.
 Section PathIndependence.
   Variables (f f': C -> C) (a b c d:R).
   Variables (g1 g2 : R -> R -> R ).
@@ -660,6 +686,13 @@ Section PathIndependence.
     reflexivity.
     1: shelve.
     rewrite -[x in is_derive _ _ x]ReImSplit.
+    apply: is_derive_pair'.
+    - pose u := fun p q => (f (p,q)).1.
+      pose v := fun p q => (f (p,q)).2.
+      pose u' := fun p q => (f' (p,q)).1.
+      pose v' := fun p q => (f' (p,q)).2.
+      apply (@path_independence_part_3_real u v u' v' _ _ c d  ); auto.
+      
     apply: filterdiff_comp_2 with (h := pair).
       eapply is_derive_ext.
         move => t'.
