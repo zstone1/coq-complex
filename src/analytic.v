@@ -512,8 +512,8 @@ Theorem holo_analytic : forall (f:C -> C) (r: posreal) D a z,
   @ball (AbsRing_UniformSpace C_AbsRing) a r z ->
   @is_pseries C_AbsRing C_NormedModule
     (fun n => PCoef * CInt (circC a r) 
-      (fun w => f(w)/(Cpow (w-z) n))
-    ) (a-z) (f z).
+      (fun w => f(w)/(Cpow (w-a) (S n)))
+    ) (z-a) (f z).
 Proof.
   move => f r D a z openD CHolo subset aball.
   rewrite -(@cauchy_integral_formula f r D a z ) -/PCoef; auto.
@@ -524,7 +524,7 @@ Proof.
       move => n.
       set p := CInt _ _.
       set q := RHS.
-      replace q with (PCoef * (scal (pow_n (a- z) n) p)); last by (
+      replace q with (PCoef * (scal (pow_n (z- a) n) p)); last by (
         rewrite /q; unfold_alg; field_simplify_eq;
         rewrite -Cmult_assoc [_*p]Cmult_comm Cmult_assoc).
         rewrite /p.
@@ -560,9 +560,24 @@ Proof.
     rewrite [RHS]sum_n_CInt.
   reflexivity.
   admit.
+  pose D' := fun w => w <> a /\ D w.
   pose h := fun 
-    n w => sum_n (fun m : nat => pow_n (a - z) m * (f w / Cpow (w - z) m)) n.
-  apply: @uniform_limits_CInt.
+    n w => sum_n (fun m : nat => (f w /(w - a)) * pow_n ((z - a)/(w - a)) m) n.
+  apply uniform_limits_CInt with (D0 := D').
+  6: apply (filterlim_ext h).
+
+  6: apply filterlim_on_family.
+  all: clear p.
+  7: { move => E. 
+       move => [sub [p1 [p2 [p3 [p4 H]]]]].
+       rewrite /Cdiv.
+       apply filterlim_compose_fam.
+       move => P.
+     
+       
+       
+     
+  apply 
   Set Printing Implicit.
     
 
