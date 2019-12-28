@@ -1265,6 +1265,14 @@ Proof.
   rewrite /Cmod /fst /snd Rplus_comm -?Rsqr_pow2 sin2_cos2 sqrt_1 //=.
 Qed.
 
+Lemma Cmod_lt_neq: forall z w, 
+  Cmod z < Cmod w -> z <> w.
+Proof.
+  move => z w + H.
+  rewrite H.
+  lra.
+Qed.
+
 Theorem cauchy_integral_formula: forall f (r: posreal) D a, 
   open D ->
   CHolo_on D f ->
@@ -1318,11 +1326,12 @@ Proof.
   pose h2 := (fun x' t' => (x' * z.2 + (1-x')*a.2 + (x'*delr' + (1-x')*r) * sin t'))%R.
   simpl.
   evar ( dg : R -> R -> R*R).
-  enough (forall r' t', c_circle' r' t' = ?dg r' t') as dg_eq.
+  enough (forall t', c_circle' delr' t' = ?dg 1 t') as dg_eq1.
+  enough (forall t', c_circle' r t' = ?dg 0 t') as dg_eq2.
   under RInt_ext.
     move => t _.
     replace (a + c_circle r t) with (h1 0 t, h2 0 t ).
-    rewrite dg_eq.
+    rewrite dg_eq2.
   over.
   rewrite /c_circle /h1 /h2.
   set p := RHS.
@@ -1334,7 +1343,7 @@ Proof.
   under RInt_ext.
     move => t _.
     replace (z + c_circle delr' t) with (h1 1 t, h2 1 t ).
-    rewrite dg_eq.
+    rewrite dg_eq1.
   over.
   rewrite /c_circle /h1 /h2.
   set p := RHS.
@@ -1342,13 +1351,190 @@ Proof.
   set p := LHS.
   simplify_as_R2 e p.
   auto.
-  apply (@path_independence_loop
+  symmetry.
+  pose D' := fun w => w <> z /\ D w.
+  have : CHolo_on D' (fun w : C => f w / (w - z)). {
+    rewrite /Cdiv.
+    apply: @CHolo_on_mult .
+    - apply: CHolo_subset.
+      2: apply holo.
+      rewrite /D'.
+      tauto.
+    - apply: CHolo_on_div.
+      apply CHolo_on_minus.
+      apply CHolo_on_id.
+      apply CHolo_on_const.
+      rewrite /D'.
+      move => w [wneqz _].
+      rewrite Cminus_0_eq.
+      auto.
+  }
+  move => [fz' holo_fz].
+  apply : (@path_independence_loop
               0 (2*PI)
               0 1
-              h1 h2).
-
+              h1 h2
               _ _
-              (fun w => f w / (z-w) ) (fun w => f' w * (f w / (Cpow (z-w) 2))).
+              (fun w => f w / (w-z) ) 
+              fz'
+              ).
+  - lra.
+  - move => *; apply: smooth_translate_circ.
+  - move => x t xbd tbd.
+    apply (@holo_path_local _ _ _ _ D').
+    1: apply open_and.
+    3: split.
+    + apply open_neq_C.
+    + move => *; apply/prod_c_topology_eq; apply: openD; auto.
+    + rewrite /h1/h2. 
+      move => /Cminus_0_eq.
+      set p := (y in y = _).
+      replace p with ((x * ((z - a) + c_circle (delr' -r) t)) + 
+                      (a - z) + c_circle r t ); last by (
+        rewrite /p;
+        set u := RHS;
+        simplify_as_R2 e u;
+        set v := LHS;
+        simplify_as_R2 e v).
+      clear p.
+      rewrite Cplus_comm.
+      set p := (_ * _ + _).
+      replace p with (
+         -(x * ((a - z) + c_circle (Cmod(a-z)) t) - (a-z))
+                       ); last (
+        rewrite /p /delr' Cmod_sym;
+        set u := RHS;
+        simplify_as_R2 e u;
+        set v := LHS;
+        simplify_as_R2 e v;
+        f_equal; field_simplify; auto).
+      move =>/Cminus_0_eq /esym.
+      apply: Cmod_lt_neq.
+      rewrite c_circle_norm_2 Rabs_pos_eq.
+      2: left; apply cond_pos.
+      clear p.
+      set p := (x in Cmod x).
+      replace p with ((1-x) * (z-a) + x * (c_circle (Cmod (z-a)) t)); last by
+        rewrite Cmod_sym /p; field_simplify.
+      apply: Rle_lt_trans.
+      1: apply Cmod_triangle.
+      rewrite ?Cmod_mult ?Cmod_R Cmod_cos_sin ?Rabs_pos_eq.
+      2: apply Cmod_ge_0.
+      have ->: (Cmod (1-x) = (1-x)%R). {
+        rewrite/Cmod //= ?Rplus_0_l Ropp_0 Rmult_0_l Rplus_0_r Rmult_1_r
+               -/(Rsqr _) sqrt_Rsqr_abs Rabs_pos_eq //=; 
+        lra.
+      }
+      2: lra.
+      move: zball.
+      unfold_alg.
+      rewrite -/(Cminus _ _).
+      lra.
+    + apply subset.
+      rewrite /h1 /h2.
+      set p := (x in Cmod x).
+      replace p with (x*(a - z) + 
+        (c_circle (x*Cmod (z-a) - r) t) ); last by (
+
+        rewrite /p /delr' Cmod_sym;
+        set u := RHS;
+        simplify_as_R2 e u;
+        set v := LHS;
+        simplify_as_R2 e v;
+        f_equal; field_simplify; auto).
+      apply: Rle_trans; first apply Cmod_triangle.
+      rewrite c_circle_norm_2 Rabs_minus_sym Rabs_pos_eq.
+      * rewrite Cmod_mult Cmod_sym Cmod_R Rabs_pos_eq; last lra. 
+        field_simplify.
+        reflexivity.
+      * rewrite -Rminus_le_0.
+        apply (Rle_trans _ (1*Cmod (z-a))).
+        apply: Rmult_le_compat_r.
+        2: lra.
+        1: apply Cmod_ge_0.
+        left. 
+        move: zball.
+        unfold_alg.
+        rewrite -/(Cminus _ _).
+        lra.
+    + move => *; apply smooth_translate_circ.
+    + apply holo_fz.
+  - move => x xbd.
+    rewrite /h1/h2.
+    split; first by 
+      rewrite cos_0 sin_0 cos_2PI sin_2PI. 
+    f_equal.
+    + under Derive_ext => t do rewrite cos_0.
+      symmetry.
+      under Derive_ext => t do rewrite cos_2PI.
+      auto.
+    + under Derive_ext => t do rewrite sin_0.
+      symmetry.
+      under Derive_ext => t do rewrite sin_2PI.
+      auto.
+  - rewrite /c_circle' //= /Cmult //=.
+    move => t'.
+    f_equal.
+    + symmetry. 
+      apply: is_derive_unique. 
+      auto_derive; auto.
+      field_simplify.
+      auto.
+    + symmetry. 
+      apply: is_derive_unique. 
+      auto_derive; auto.
+      field_simplify.
+      auto.
+  - rewrite /c_circle' //= /Cmult //=.
+    move => t'.
+    f_equal.
+    + symmetry. 
+      apply: is_derive_unique. 
+      auto_derive; auto.
+      field_simplify.
+      auto.
+    + symmetry. 
+      apply: is_derive_unique. 
+      auto_derive; auto.
+      field_simplify.
+      auto.
+Qed.
+    set p := Derive _.
+
+    
+
+      apply: CHolo_on_div.
+      
+
+      replace p with ((x * ((z - a) + c_circle (delr' -r) t)) + 
+                      (a - z) + c_circle r t ); last by (
+
+        
+
+      have: (@ball (AbsRing_UniformSpace C_AbsRing) (a-z) r (x*(a-z) + c_circle (Cmod (a-z)) t)). {
+        admit.
+      }
+      unfold_alg.
+      rewrite /ball.
+      rewrite Cmod_mult Cmod_R Rabs_pos_eq; last by lra.
+      clear p.
+      set p := Cmod _.
+      apply (@Rle_lt_trans _ (1*p)); first apply Rmult_le_compat_r.
+      1: rewrite /p; apply Cmod_ge_0.
+      1: lra.
+      rewrite Rmult_1_l /p.
+      SearchAbout Cmod.
+      SearchAbout (_ * _ <= _).
+      * lra.
+
+      have 
+
+  2: auto.
+  1: apply open_neq_C.
+  1: auto.
+
+    
+    
   
   simpl.
   have?:= PI_RGT_0.
