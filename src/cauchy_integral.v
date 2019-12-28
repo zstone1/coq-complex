@@ -1265,61 +1265,91 @@ Proof.
   rewrite /Cmod /fst /snd Rplus_comm -?Rsqr_pow2 sin2_cos2 sqrt_1 //=.
 Qed.
 
-Theorem cauchy_integral_formula: forall f (r r': posreal) a, 
-  r' < r ->
-  CHolo_on (ball a r) f ->
+Theorem cauchy_integral_formula: forall f (r: posreal) D a, 
+  open D ->
+  CHolo_on D f ->
+  (forall w, Cmod (a - w) <= r -> D w) ->
   forall z, 
-    ball a r' z -> 
-    1/(2*PI* Ci) * CInt (circC a r') (fun w => f(w) / (w-z))
+    @ball (AbsRing_UniformSpace C_AbsRing) a r z -> 
+    1/(2*PI* Ci) * CInt (circC a r) (fun w => f(w) / (w-z))
     = f(z).
 Proof.
-  move => f r r' a r'bd [f' holo]. 
+  move => f r D a openD. 
+  copy.
+  move => [f' holo'] holo subset. 
   move => z zball.
-  pose delr' := (r' - (Cmod (z -a)%C))%R.
+  have ? := cond_pos r.
+  have ?:= @Cmod_ge_0 (z-a).
+  pose delr' := (r - (Cmod (z -a)%C))%R.
   have delrpos: 0 < delr'. {
-    rewrite /ball /= /AbsRing_ball /= /abs /= /minus /plus/opp /= 
-            -/(Cminus _ _) in zball.
+    move: zball.
+    unfold_alg.
+    rewrite -/(Cminus _ _).
     rewrite /delr'.
-    have ? := Cmod_ge_0(z-a).
     lra.
   }
-  have ?:= cond_pos r.
-  have ?:= cond_pos r'.
-  have ?: 1 < r/r' by apply Rlt_div_r; lra.
-  have ?:= @Cmod_ge_0 (z-a).
   pose delr := mkposreal _ delrpos.
-  have?: delr <= r'. {
+  have?: delr <= r. {
     rewrite /delr /delr' /=.
     lra.
   }
 
-  rewrite -[RHS](@cauchy_integral_formula_center f delr (pos_div_2 delr)); simpl.
-  2: lra.
+  rewrite -[RHS](@cauchy_integral_formula_center f (delr) D z); simpl.
+  2: move => *; apply prod_c_topology_eq; apply openD; auto.
   2: { 
-    exists f'; move => z' H. 
-    apply holo. 
-    apply: ball_le; 
-      first (left; apply r'bd).
-    unfold_alg.
-    rewrite -/(Cminus _ _).
-    apply: Rle_lt_trans.
-    have ->: (z' - a = (z' - z) + (z - a));
-      first field_simplify_eq; auto.
-    apply: Cmod_triangle.
-    rewrite /ball /= /AbsRing_ball /= /abs /= /minus /plus /opp /= 
-            -/(Cminus _ _) /delr' in H.
+    move => w H. 
+    apply subset.
+    `Begin Rle (Cmod (a - w)). {
+    | {( Cmod ((a - z) + (z- w)) )} right; f_equal; field_simplify.
 
-    lra.
+    | {( Rplus (Cmod (a - z)) (Cmod (z- w)) )} apply: Cmod_triangle.
+
+    | {( Rplus _ (delr') )} apply: Rplus_le_compat_l; auto.
+
+    | {( pos r )} rewrite Cmod_sym /delr'; field_simplify.
+    `Done.
+    }
+    auto.
   }
-  pose o (r0:R) := (r0 * z + (1-r0) * a).
-  pose l (r0:R) := (r0 * (delr) + (1-r0)*r')%R.
+  2: auto.
   f_equal.
-  have := @path_independence 
-              (-PI)%R (3*PI) 0 (2*PI)
-              (-1) (r/r') 0 1
-              f f' 
-              (fun r0 t0 => (o(r0)).1 + (l(r0)) * cos t0)%R
-              (fun r0 t0 => (o(r0)).2 + (l(r0)) * sin t0)%R.
+  rewrite /CInt.
+  pose h1 := (fun x' t' => (x' * z.1 + (1-x')*a.1 + (x'*delr' + (1-x')*r) * cos t'))%R.
+  pose h2 := (fun x' t' => (x' * z.2 + (1-x')*a.2 + (x'*delr' + (1-x')*r) * sin t'))%R.
+  simpl.
+  evar ( dg : R -> R -> R*R).
+  enough (forall r' t', c_circle' r' t' = ?dg r' t') as dg_eq.
+  under RInt_ext.
+    move => t _.
+    replace (a + c_circle r t) with (h1 0 t, h2 0 t ).
+    rewrite dg_eq.
+  over.
+  rewrite /c_circle /h1 /h2.
+  set p := RHS.
+  simplify_as_R2 e p.
+  set p := LHS.
+  simplify_as_R2 e p.
+  auto.
+  symmetry.
+  under RInt_ext.
+    move => t _.
+    replace (z + c_circle delr' t) with (h1 1 t, h2 1 t ).
+    rewrite dg_eq.
+  over.
+  rewrite /c_circle /h1 /h2.
+  set p := RHS.
+  simplify_as_R2 e p.
+  set p := LHS.
+  simplify_as_R2 e p.
+  auto.
+  apply (@path_independence_loop
+              0 (2*PI)
+              0 1
+              h1 h2).
+
+              _ _
+              (fun w => f w / (z-w) ) (fun w => f' w * (f w / (Cpow (z-w) 2))).
+  
   simpl.
   have?:= PI_RGT_0.
   case; first lra.
