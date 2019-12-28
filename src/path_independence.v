@@ -235,7 +235,7 @@ Proof.
   unfold_alg.
 Qed.
 
-Ltac diff_help := timeout 1 
+Ltac diff_help :=
   match goal with 
   | |- ex_derive (fun _ => _ - _)%R _ => apply: ex_derive_minus
   | |- ex_derive (fun _ => _ * _)%R _ => apply: ex_derive_mult 
@@ -555,7 +555,23 @@ Section PathIndependence .
         rewrite (@Derive_comp_2_left v g1 g2).
         rewrite Du'1 Du'2 Dv'1 Dv'2.
         reflexivity.
-        all: repeat diff_help; auto.
+        7,9:
+        match goal with 
+        | |- ex_derive (fun _ => ?u (_ _ _) (_ _ _)) _ => 
+         first[ apply: (@differentiable_pt_comp_ex_derive_left u )|
+             apply: (@differentiable_pt_comp_ex_derive_right u)]
+        end.
+        all: auto.
+        1-4: eexists; eexists; eauto.
+        3,4: apply: ex_derive_mult.
+        3,5:
+        match goal with 
+        | |- ex_derive (fun _ => ?u (_ _ _) (_ _ _)) _ => 
+         first[ apply: (@differentiable_pt_comp_ex_derive_left u )|
+             apply: (@differentiable_pt_comp_ex_derive_right u)]
+        end.
+        all: auto.
+        all: diff_help.
       }
       move: nice' => /locally_2d_singleton.
       expand_nice.

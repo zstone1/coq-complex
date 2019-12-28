@@ -1219,7 +1219,6 @@ Proof.
   f_equal.
   symmetry.
   under CInt_ext_global => t do rewrite Cmult_1_r.  
-  SearchAbout (open).
   pose D' := fun z => z<> a /\ D z.
   apply (@circ_independence _ _ _ _ D').
   1: left; apply cond_pos.
@@ -1499,69 +1498,4 @@ Proof.
       field_simplify.
       auto.
 Qed.
-    set p := Derive _.
-
-    
-
-      apply: CHolo_on_div.
-      
-
-      replace p with ((x * ((z - a) + c_circle (delr' -r) t)) + 
-                      (a - z) + c_circle r t ); last by (
-
-        
-
-      have: (@ball (AbsRing_UniformSpace C_AbsRing) (a-z) r (x*(a-z) + c_circle (Cmod (a-z)) t)). {
-        admit.
-      }
-      unfold_alg.
-      rewrite /ball.
-      rewrite Cmod_mult Cmod_R Rabs_pos_eq; last by lra.
-      clear p.
-      set p := Cmod _.
-      apply (@Rle_lt_trans _ (1*p)); first apply Rmult_le_compat_r.
-      1: rewrite /p; apply Cmod_ge_0.
-      1: lra.
-      rewrite Rmult_1_l /p.
-      SearchAbout Cmod.
-      SearchAbout (_ * _ <= _).
-      * lra.
-
-      have 
-
-  2: auto.
-  1: apply open_neq_C.
-  1: auto.
-
-    
-    
-  
-  simpl.
-  have?:= PI_RGT_0.
-  case; first lra.
-  1,2: rewrite Rmin_left;last (lra);
-       rewrite Rmax_right; lra.
-  1,2: rewrite Rmin_left; last (by lra);
-       rewrite Rmax_right; lra;
-       lra.
-  move => r0 t r0bd tbd.
-  rewrite ?Rmin_left in r0bd tbd; try lra;
-  rewrite ?Rmax_right in r0bd tbd; try lra.
-  split;[|split].
-  - apply holo.
-    rewrite /ball /= /AbsRing_ball /abs /= /minus /plus /opp /=.
-    rewrite /o -/(Cminus _ _) /l //= /delr'.
-    set p := (x in (Cmod x)).
-    replace p with (r0*(z-a) + (r' - r0 * Cmod (z-a) )*(cos t, sin t)). 2:{
-      set q := LHS.
-      simplify_as_R2 e q.
-      simplify_as_R2 e p.
-      auto.
-    }
-    apply: Rle_lt_trans.
-    apply: Cmod_triangle.
-    rewrite ?Cmod_mult Cmod_cos_sin Rmult_1_r.
-    
-  
-2: auto.
 End CauchyIntegral.
