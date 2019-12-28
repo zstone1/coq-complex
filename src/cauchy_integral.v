@@ -11,7 +11,7 @@ Unset Printing Implicit Defensive.
 Set Bullet Behavior "Strict Subproofs".
 
 
-Require Import domains cauchy_riemann path_independence.
+Require Import domains cauchy_riemann homotopy path_independence.
 
 Open Scope program_scope.
 Open Scope general_if_scope.
@@ -35,485 +35,23 @@ Proof.
             -?Rsqr_pow2 sin2_cos2.
     lra.
 Qed.
-Lemma differentiable_pt_scal: forall f x y,
-  ex_derive f y -> 
-  differentiable_pt (fun p q => p * f q) x y.
+Lemma c_circle_norm_2: forall r t,
+  Cmod(c_circle r t) = Rabs r.
 Proof.
-  move => f x y Ex.
-  eexists; eexists.
-  apply/filterdiff_differentiable_pt_lim. 
-  apply: (@is_derive_filterdiff (fun p q => p * f q)). 
-  - apply global_local => x'; auto_derive; eauto; field_simplify;
-      instantiate (1:= fun _ q => f q); auto.
-  - auto_derive; auto. 
-  - apply continuous_comp; simpl; try auto_continuous_aux.
-    apply: ex_derive_continuous.
-    auto_derive; auto.
-Qed.
-Lemma differentiable_pt_proj2: forall f x y,
-  ex_derive f y -> 
-  differentiable_pt (fun p q => f q) x y.
-Proof.
-  move => f x y Ex.
-  eexists; eexists.
-  apply/filterdiff_differentiable_pt_lim. 
-  apply: (@is_derive_filterdiff (fun p q =>  f q)). 
-  - apply global_local => x'; auto_derive; eauto.
-      instantiate (1:= fun _ _ => 0); auto.
-  - auto_derive; auto. 
-  - apply continuous_const. 
-Qed.
-Lemma differentiable_pt_proj1: forall f x y,
-  ex_derive f x -> 
-  differentiable_pt (fun p q => f p) x y.
-Proof.
-  move => f x y [??].
-  eexists; eexists.
-  apply: differentiable_pt_lim_proj1_0 .
-  apply/ is_derive_Reals.
-  eauto.
+  move => r t.
+  elim_norms.
+  - nra.
+  - field_simplify_eq. 
+    rewrite -Rmult_plus_distr_l Rplus_comm 
+            -?Rsqr_pow2 sin2_cos2.
+    lra.
 Qed.
 
-Lemma differentiable_pt_ext: forall f g x y,
-  (forall p q, f p q = g p q) -> 
-  differentiable_pt f x y <-> differentiable_pt g x y.
-Proof.
-  split; move => [? [? G]]; eexists; eexists; 
-  eapply differentiable_pt_lim_ext.
-  - exists pos_half => *. apply H.
-  - eauto.
-  - exists pos_half => *. symmetry. apply H.
-  - eauto.
-Qed.
-
-Lemma differentiable_pt_ext_loc: forall f g x y,
-  locally_2d (fun p q => f p q = g p q) x y -> 
-  differentiable_pt f x y <-> differentiable_pt g x y.
-Proof.
-  move => f g x y /locally_2d_locally loc_eq.
-  split; move => [? [? /filterdiff_differentiable_pt_lim G]]; eexists; eexists;
-  apply/ filterdiff_differentiable_pt_lim;
-  [ |
-  have {}loc_eq: locally (x,y) (fun z => g z.1 z.2 = f z.1 z.2) by
-      apply: filter_imp loc_eq;
-      move => *; congruence
-  ];
-  apply: (filterdiff_ext_loc _ _ _ loc_eq).
-  - apply locally_filter.
-  - move => p /is_filter_lim_locally_unique <- //=.
-    move: loc_eq => /locally_singleton //=.
-  - eauto.
-  - apply locally_filter.
-  - move => p /is_filter_lim_locally_unique <- //=.
-    move: loc_eq => /locally_singleton //=.
-  - eauto.
-Qed.
-
-Lemma differentiable_pt_plus: forall f k x y,
-  differentiable_pt f x y -> differentiable_pt (fun p q => k + f p q) x y.
-Proof.
-  move => f k x y [d1 [d2 D]].
-  apply differentiable_pt_comp.
-  - exists 1. exists 1. apply filterdiff_differentiable_pt_lim. 
-    eapply filterdiff_ext_lin.
-    apply filterdiff_linear.
-    apply: is_linear_plus.
-    move => *; simpl; lra.
-  - exists 0. exists 0; apply filterdiff_differentiable_pt_lim. 
-    eapply filterdiff_ext_lin.
-    apply: filterdiff_const.
-    move => * //=.
-    rewrite /zero //=; lra.
-  - exists d1; exists d2; auto.
-Qed.
-
-Ltac replace_Derive := 
-  eapply continuity_2d_pt_ext;[ move => x y;
-    eapply Derive_ext => z;
-      symmetry;
-      apply is_derive_unique;
-      auto_derive; auto;
-      field_simplify; auto | ];
-  eapply continuity_2d_pt_ext;[ move => x y;
-      symmetry;
-      apply is_derive_unique;
-      auto_derive; auto;
-      field_simplify; auto | ].
-
-Ltac rerwite_under f := 
-  let l := fresh in 
-  under differentiable_pt_ext => p q do (
-    set l := Derive _ _;
-    replace l with f
-  )
-  ;
-  rewrite /l; symmetry;
-  apply: is_derive_unique;
-  auto_derive; auto; field_simplify; auto;
-  apply: differentiable_pt_scal;
-  auto_derive; auto.
-Lemma smooth_circ_origin: forall r t, 
-  SmoothPath (fun r t => r * cos t)%R ( fun r t => r * sin t)%R r t.
-Proof.
-  move => r t; repeat split; [exists pos_half | exists pos_half | .. ]; repeat split.
-  7-10: 
-    replace_Derive;
-    auto;
-    apply: differentiable_continuity_pt;
-    apply differentiable_pt_proj2; auto_derive; auto.
-  - apply differentiable_pt_scal; auto_derive; auto.
-  - apply (@differentiable_pt_ext _ (fun p q => (p * (- sin q))));
-    [ move => *; apply:is_derive_unique; auto_derive; auto; field_simplify; auto
-    | apply: differentiable_pt_scal; auto_derive; auto
-    ].
-  - apply (@differentiable_pt_ext _ (fun p q => cos q));
-    [ move => *; apply: is_derive_unique; auto_derive; auto; field_simplify; auto
-    | apply: differentiable_pt_proj2; auto_derive; auto
-    ].
-    
-  - apply differentiable_pt_scal; auto_derive; auto.
-  - apply (@differentiable_pt_ext _ (fun p q => (p * (cos q))));
-    [ move => *; apply:is_derive_unique; auto_derive; auto; field_simplify; auto
-    | apply: differentiable_pt_scal; auto_derive; auto
-    ].
-  - apply (@differentiable_pt_ext _ (fun p q => sin q));
-    [ move => *; apply:is_derive_unique; auto_derive; auto; field_simplify; auto
-    | apply: differentiable_pt_proj2; auto_derive; auto
-    ].
-Qed.
-
-Lemma smooth_line: forall z w r t, 
-  SmoothPath (fun r t => r * z.1 + (1-r) * w.1 )%R 
-             (fun r t => r * z.2 + (1-r) * w.2 )%R r t.
-Proof.
-  move => r t; repeat split; [exists pos_half | exists pos_half | .. ]; repeat split.
-  7-10: 
-    replace_Derive;
-    auto;
-    apply: differentiable_continuity_pt;
-    apply differentiable_pt_proj2; auto_derive; auto.
-  - apply: differentiable_pt_proj1.
-    auto_derive. 
-    auto.
-  - eapply differentiable_pt_ext.
-    move => *.
-    apply Derive_const.
-    apply: differentiable_pt_proj1.
-    auto_derive.
-    auto.
-  - apply: differentiable_pt_proj1.
-    eapply ex_derive_ext.
-    symmetry.
-    apply is_derive_unique.
-    auto_derive; auto.
-    reflexivity.
-    auto_derive.
-    auto.
-  - apply: differentiable_pt_proj1.
-    auto_derive.
-    auto.
-  - eapply differentiable_pt_ext.
-    move => *.
-    apply Derive_const.
-    apply: differentiable_pt_proj1.
-    auto_derive.
-    auto.
-  - apply: differentiable_pt_proj1.
-    eapply ex_derive_ext.
-    symmetry.
-    apply is_derive_unique.
-    auto_derive; auto.
-    reflexivity.
-    auto_derive.
-    auto.
-Qed.
-
-Lemma differentiable_pt_rplus : forall x y, differentiable_pt Rplus x y .
-Proof.
-  move => x y.
-  exists 1; exists 1.
-  apply/ filterdiff_differentiable_pt_lim.
-  apply: filterdiff_ext_lin.
-  2: move => z; rewrite ?Rmult_1_r; reflexivity.
-  apply: filterdiff_plus.
-Qed.
-
-Lemma smooth_path_plus: forall g1 g2 h1 h2 r t, 
-  SmoothPath g1 g2 r t -> 
-  SmoothPath h1 h2 r t -> 
-  SmoothPath (fun r' t' => g1 r' t' + h1 r' t')%R
-             (fun r' t' => g2 r' t' + h2 r' t')%R
-             r t.
-Proof.
-  move => g1 g2 h1 h2 r t [gl1 [gl2 gl3]] [hl1 [hl2 hl3]].
-  split;[|split].
-  - have H:= locally_2d_and _ _ r t gl1 hl1.
-    apply: locally_2d_impl_strong H.
-    apply locally_2d_forall.
-    move => u v.
-    move => H.
-    split;[|split].
-    + apply: differentiable_pt_comp.
-      1: apply differentiable_pt_rplus.
-      all: move: H => /locally_2d_singleton; tauto.
-    + eapply differentiable_pt_ext_loc.
-      1: apply: locally_2d_impl H;
-         apply locally_2d_forall => p q H;
-         rewrite Derive_plus;[
-           reflexivity
-           | apply: (@differentiable_pt_ex_right g1); tauto 
-           | apply: (@differentiable_pt_ex_right h1); tauto 
-         ].
-      apply: differentiable_pt_comp.
-      1: apply differentiable_pt_rplus.
-      all: move: H => /locally_2d_singleton; tauto.
-    + eapply differentiable_pt_ext_loc.
-      1: apply: locally_2d_impl H;
-         apply locally_2d_forall => p q H;
-         rewrite Derive_plus;[
-           reflexivity
-           | apply: (@differentiable_pt_ex_left g1); tauto 
-           | apply: (@differentiable_pt_ex_left h1); tauto 
-         ].
-      apply: differentiable_pt_comp.
-      1: apply: differentiable_pt_rplus.
-      all: move: H => /locally_2d_singleton; tauto.
-  - have H:= locally_2d_and _ _ r t gl2 hl2.
-    apply: locally_2d_impl_strong H.
-    apply locally_2d_forall.
-    move => u v.
-    move => H.
-    split;[|split].
-    + apply: differentiable_pt_comp.
-      1: apply differentiable_pt_rplus.
-      all: move: H => /locally_2d_singleton; tauto.
-    + eapply differentiable_pt_ext_loc.
-      1: apply: locally_2d_impl H;
-         apply locally_2d_forall => p q H;
-         rewrite Derive_plus;[
-           reflexivity
-           | apply: (@differentiable_pt_ex_right g2); tauto 
-           | apply: (@differentiable_pt_ex_right h2); tauto 
-         ].
-      apply: differentiable_pt_comp.
-      1: apply differentiable_pt_rplus.
-      all: move: H => /locally_2d_singleton; tauto.
-    + eapply differentiable_pt_ext_loc.
-      1: apply: locally_2d_impl H;
-         apply locally_2d_forall => p q H;
-         rewrite Derive_plus;[
-           reflexivity
-           | apply: (@differentiable_pt_ex_left g2); tauto 
-           | apply: (@differentiable_pt_ex_left h2); tauto 
-         ].
-      apply: differentiable_pt_comp.
-      1: apply differentiable_pt_rplus.
-      all: move: H => /locally_2d_singleton; tauto.
-  - have H1:= locally_2d_and _ _ r t gl1 hl1.
-    have H2:= locally_2d_and _ _ r t gl2 hl2.
-    repeat split.
-    + apply: continuity_2d_pt_ext_loc.
-      apply: locally_2d_impl_strong H1.
-      apply locally_2d_forall => p q /locally_2d_1d_const_y H.
-      apply: Derive_ext_loc.
-      apply: filter_imp H => p' H.
-      rewrite Derive_plus;
-      [ reflexivity
-      | apply: (@differentiable_pt_ex_right g1); tauto 
-      | apply: (@differentiable_pt_ex_right h1); tauto 
-      ].
-      apply: continuity_2d_pt_ext_loc.
-      apply: locally_2d_impl H1.
-      apply locally_2d_forall => p q H.
-      rewrite Derive_plus;
-      [ reflexivity
-      | apply: (@differentiable_pt_ex_left (fun p => Derive (g1 p))); tauto
-      | apply: (@differentiable_pt_ex_left (fun p => Derive (h1 p))); tauto
-      ].
-      apply continuity_2d_pt_plus; tauto.
-    + apply: continuity_2d_pt_ext_loc.
-      apply: locally_2d_impl_strong H1.
-      apply locally_2d_forall => p q /locally_2d_1d_const_x H.
-      apply: Derive_ext_loc.
-      apply: filter_imp H => p' H.
-      rewrite Derive_plus;
-      [ reflexivity
-      | apply: (@differentiable_pt_ex_left g1); tauto 
-      | apply: (@differentiable_pt_ex_left h1); tauto 
-      ].
-      apply: continuity_2d_pt_ext_loc.
-      apply: locally_2d_impl H1.
-      apply locally_2d_forall => p q H.
-      rewrite Derive_plus;
-      [ reflexivity
-      | apply: (@differentiable_pt_ex_right (fun x y => Derive (g1 ^~ y) x)); tauto
-      | apply: (@differentiable_pt_ex_right (fun x y => Derive (h1 ^~ y) x)); tauto
-      ].
-      apply continuity_2d_pt_plus; tauto.
-      
-    + apply: continuity_2d_pt_ext_loc.
-      apply: locally_2d_impl_strong H2.
-      apply locally_2d_forall => p q /locally_2d_1d_const_y H.
-      apply: Derive_ext_loc.
-      apply: filter_imp H => p' H.
-      rewrite Derive_plus;
-      [ reflexivity
-      | apply: (@differentiable_pt_ex_right g2); tauto 
-      | apply: (@differentiable_pt_ex_right h2); tauto 
-      ].
-      apply: continuity_2d_pt_ext_loc.
-      apply: locally_2d_impl H2.
-      apply locally_2d_forall => p q H.
-      rewrite Derive_plus;
-      [ reflexivity
-      | apply: (@differentiable_pt_ex_left (fun p => Derive (g2 p))); tauto
-      | apply: (@differentiable_pt_ex_left (fun p => Derive (h2 p))); tauto
-      ].
-      apply continuity_2d_pt_plus; tauto.
-
-    + apply: continuity_2d_pt_ext_loc.
-      apply: locally_2d_impl_strong H2.
-      apply locally_2d_forall => p q /locally_2d_1d_const_x H.
-      apply: Derive_ext_loc.
-      apply: filter_imp H => p' H.
-      rewrite Derive_plus;
-      [ reflexivity
-      | apply: (@differentiable_pt_ex_left g2); tauto 
-      | apply: (@differentiable_pt_ex_left h2); tauto 
-      ].
-      apply: continuity_2d_pt_ext_loc.
-      apply: locally_2d_impl H2.
-      apply locally_2d_forall => p q H.
-      rewrite Derive_plus;
-      [ reflexivity
-      | apply: (@differentiable_pt_ex_right (fun x y => Derive (g2 ^~ y) x)); tauto
-      | apply: (@differentiable_pt_ex_right (fun x y => Derive (h2 ^~ y) x)); tauto
-      ].
-      apply continuity_2d_pt_plus; tauto.
-Qed.
-
-Lemma smooth_move_circ: forall z w r t, 
-  SmoothPath (fun r t => r * z.1 + (1-r) * w.1 + r * cos t )%R 
-             (fun r t => r * z.2 + (1-r) * w.2 + r * sin t)%R r t.
 Open Scope C.
-Definition CHolo f f' z := 
-  Holo f f' z /\ continuous f' z.
+
 Definition CHolo_on D f := exists f',
   forall z, D z -> CHolo f f' z.
 
-Lemma circ_independence : forall (f: C -> C) z (r:posreal) (l r' r'': R),
-  CHolo_on (fun z' => l < Cmod (z'-z) < r) f ->
-   -r <= l ->
-   r' < r'' ->
-   l < r' < r ->
-   l < r'' < r ->
-  RInt (V:=C_R_CompleteNormedModule) 
-    (fun t0 => f (z + c_circle r' t0) * c_circle' r' t0) 0 (2 * PI) =
-  RInt (V:=C_R_CompleteNormedModule) 
-    (fun t0 => f(z + c_circle r'' t0) * c_circle' r'' t0) 0 (2 * PI).
-Proof.
-  move => f z r l r' r'' [f' holo] ? ? [? ?] [? ?].
-  
-  have indep := @path_independence
-                (-PI)%R (3*PI) 0 (2*PI)
-                (l) r r' r''
-                f f' 
-                (fun r t => z.1 + r * cos t)%R
-                (fun r t => z.2 + r * sin t)%R.
-  have pig0 := PI_RGT_0.
-  have rpos := cond_pos r.
-  case: indep.
-  2-5: rewrite Rmin_left; last (by lra); rewrite Rmax_right; lra.
-  - auto.
-  - move => r0 t r0bd tbd.
-    rewrite Rmax_right in r0bd; last by lra.
-    rewrite Rmin_left in r0bd; last by lra.
-    move : r0bd => [??].
-    rewrite -and_assoc.
-    split.
-    + move: holo => /(_ ( z + c_circle r0 t)).
-      case. {
-        unfold_alg ; rewrite /AbsRing_ball; unfold_alg.
-        set p := _ - _.
-        simplify_as_R2 e p.
-        rewrite c_circle_norm.
-        split.
-        - destruct (Rlt_dec l 0).
-          + eapply Rlt_le_trans. 
-            apply r1.
-            apply Rabs_pos.
-          + rewrite Rabs_right; lra.
-        - destruct (Rlt_dec r0 0).
-          + rewrite Rabs_left; lra.
-          + rewrite Rabs_pos_eq; lra.
-      }
-      set p := z + _.
-      simplify_as_R2 e p.
-      auto.
-    + have:= smooth_circ z r0 t. apply.
-  - move => r0 r0bd.
-    rewrite Rmax_right in r0bd; last by lra.
-    rewrite Rmin_left in r0bd; last by lra.
-    move : r0bd => [??].
-    split;
-    rewrite cos_0 sin_0 cos_2PI sin_2PI; auto.
-  - move => I1 [I2 H].
-    under RInt_ext => t0 _.
-      set p := z + _.
-      simplify_as_R2 e p.
-      rewrite /c_circle'.
-      set p := r' * _.
-      simplify_as_R2 e p.
-      replace (-r'* sin t0)%R with (Derive (fun t : R => (z.1 + r' * cos t)%R) t0).
-      2: apply is_derive_unique; auto_derive; auto; lra.
-      replace (r'* cos t0)%R with (Derive (fun t : R => (z.2 + r' * sin t)%R) t0) at 2.
-      2: apply is_derive_unique; auto_derive; auto; lra.
-    over.
-    rewrite H.
-    symmetry.
-    under RInt_ext => t0 _.
-      set p := z + _.
-      simplify_as_R2 e p.
-      rewrite /c_circle'.
-      set p := r'' * _.
-      simplify_as_R2 e p.
-      replace (-r''* sin t0)%R with (Derive (fun t : R => (z.1 + r'' * cos t)%R) t0).
-      2: apply is_derive_unique; auto_derive; auto; lra.
-      replace (r''* cos t0)%R with (Derive (fun t : R => (z.2 + r'' * sin t)%R) t0) at 2.
-      2: apply is_derive_unique; auto_derive; auto; lra.
-    over.
-    auto.
-Qed.
-      
-      
-Lemma cauchy_integral_theorem_circ : forall (f: C -> C) z (r r':posreal),
-  r' < r ->
-  CHolo_on (ball z r) f ->
-  RInt (V:=C_R_CompleteNormedModule) 
-    (fun t0 => f (z + c_circle r' t0) * c_circle' r' t0) 0 (2 * PI) = zero.
-Proof.
-  move => f z r r' ? holo .
-  have? := cond_pos r.
-  have? := cond_pos r'.
-  rewrite -(@circ_independence f z r (-r) 0 r').
-  3-6: lra.
-  2: { 
-    move: holo => [f' h].
-    exists f' => z0 [? ?].
-    apply h.
-    unfold_alg.
-  }
-  under RInt_ext => t _.
-    rewrite /c_circle'.
-    set p := _ * _.
-    simplify_as_R2 e p.
-    replace (0,0) with (zero (G:= C_AbelianGroup)); last by auto.
-  over.
-  rewrite RInt_const.
-  rewrite scal_zero_r.
-  auto.
-Qed.
-  
 Record Contour := mkContour {
   gamma: R -> C; 
   gamma': R -> C;
@@ -532,7 +70,7 @@ Definition CInt (g: Contour ) f :=
   RInt (V:=C_R_CompleteNormedModule) 
     (fun t => f (gamma g t) * (gamma' g t)) (l_end g) (r_end g) .
 
-Program Definition circC (z:C) (r: posreal) := {|
+Program Definition circC (z:C) (r: R) := {|
   gamma := fun t => z + c_circle r t;
   gamma' := c_circle' r;
   l_end := 0;
@@ -563,37 +101,119 @@ auto_continuous_aux; simpl; apply: ex_derive_continuous;
 auto_derive; auto.
 Qed.
 
-Lemma circ_independence_C : forall (f: C -> C) z (r' r'' :posreal) l r,
-  CHolo_on (fun z' => l < Cmod (z'-z) < r) f ->
-   0 <= l -> 
-   l < r' < r ->
-   l < r'' < r ->
-  CInt (circC z r') f = 
-  CInt (circC z r'') f.
+Lemma holo_path_local : forall f f' g1 g2 D r t, 
+  open D ->
+  D (g1 r t, g2 r t) -> 
+  (forall z, D (g1 z.1 z.2,g2 z.1 z.2) -> SmoothPath g1 g2 z.1 z.2) ->
+  (forall z, D z -> CHolo f f' z) ->
+  locally_2d (fun r' t' => CHolo f f' (g1 r' t', g2 r' t')) r t.
 Proof.
-  move => f z r' r''.
-  wlog: r' r'' / r' < r''. {
-    move => H.
-    destruct (Rtotal_order r' r'');[ | destruct H0].
-    - apply: H; auto.
-    - move => *. rewrite /CInt //= H0 //=.
-    - move => *; symmetry; apply: H; eauto.
-  }
-  move => ? l r holo r'bd r''bd.
-  rewrite /CInt.
-  apply: (@circ_independence _ _ (mkposreal r _) l); eauto.
-  - have?:= cond_pos r'; lra.
-  - move => ?; simpl. lra.
+  move => f f' g1 g2 D r t openD inD smooth holo.
+  apply/locally_2d_locally.
+  apply: locally_open.
+  - apply open_comp with (f0 := fun z => (g1 z.1 z.2, g2 z.1 z.2)) .
+    2: apply openD.
+    move => x H.
+    rewrite -/(continuous _ _).
+    move: smooth => /(_ x H). 
+    move => [/locally_2d_singleton [H1 _] /locally_2d_singleton [H2 _]].
+    apply continuous_pair;simpl;
+    apply/continuity_2d_pt_continuous;
+    apply/differentiable_continuity_pt; auto.
+  - move => *; auto. 
+  - simpl; auto.
 Qed.
 
-Theorem cauchy_integral_theorem: forall (f: C -> C) z (r r':posreal),
-  r' < r ->
-  CHolo_on (ball z r) f ->
-  CInt (circC z r') f = zero.
+
+Lemma circ_independence : forall (f: C -> C) z 
+  (r1 r2: R) (D: C -> Prop),
+  0 <= r1 -> 
+  open D -> 
+  r1 < r2 ->
+  (forall w, r1 <= Cmod (z - w) <= r2 -> D w) ->
+  CHolo_on D f ->
+  CInt (circC z r1) f =
+  CInt (circC z r2) f.
 Proof.
-  move => f z r r' r'bd holo.
-  rewrite /CInt //=.
-  rewrite (@cauchy_integral_theorem_circ f z r r'); auto.
+  move => f z r1 r2 D ? openD r1_r2 subset [f' holo].
+  rewrite /CInt.
+  simpl.
+  evar ( dg : R -> R -> R*R).
+  enough (forall r' t', c_circle' r' t' = ?dg r' t') as dg_eq.
+  under RInt_ext => t _.
+    rewrite dg_eq.
+    set p := _ + _.
+    simplify_as_R2 e p.
+  over.
+  symmetry.
+  under RInt_ext => t _.
+    rewrite dg_eq.
+    set p := _ + _.
+    simplify_as_R2 e p.
+  over.
+  symmetry.
+  apply: (@path_independence_loop 0 (2*PI) r1 r2 
+            (fun r t => z.1 + r * cos t)%R
+            (fun r t => z.2 + r * sin t)%R
+            ).
+  - auto.
+  - move => r t rbd tbd.
+    apply smooth_circ.
+  - move => r t rbd tbd.
+    apply: holo_path_local.
+    + apply openD.
+    + apply subset.
+      set p := (_,_).
+      replace p with (z + c_circle r t); last by
+        (rewrite /p; set q := LHS; simplify_as_R2 e q).
+      rewrite /Cminus Copp_plus_distr Cplus_assoc Cplus_opp_r Cplus_0_l 
+              Cmod_opp c_circle_norm_2 Rabs_pos_eq //=.
+      lra.
+    + move => *; apply smooth_circ.
+    + apply holo.
+  - simpl.
+    move => r rbd.
+    split; first by 
+      rewrite cos_0 sin_0 cos_2PI sin_2PI. 
+    f_equal.
+    + under Derive_ext => t do rewrite cos_0.
+      symmetry.
+      under Derive_ext => t do rewrite cos_2PI.
+      auto.
+    + under Derive_ext => t do rewrite sin_0.
+      symmetry.
+      under Derive_ext => t do rewrite sin_2PI.
+      auto.
+  - move => r' t'.
+    rewrite /c_circle' /Cmult /=.
+    f_equal; field_simplify; symmetry;
+    apply: is_derive_unique; auto_derive;
+      auto; field_simplify; auto.
+Qed.
+      
+Lemma cauchy_integral_theorem : forall (f: C -> C) z (D: C -> Prop) (r:posreal),
+  open D ->
+  CHolo_on D f ->
+  (forall w, Cmod (z - w) <= r -> D w) ->
+  CInt (circC z r) f = zero.
+Proof.
+  move => f z D r openD holo subset.
+  have? := cond_pos r.
+  rewrite -(@circ_independence f z 0 r D ); auto.
+  + rewrite /CInt .
+    under RInt_ext => t _.
+      rewrite /c_circle'.
+      set p := _ * _.
+      simplify_as_R2 e p.
+      replace (0,0) with (zero (G:= C_AbelianGroup)); last by auto.
+    over.
+    rewrite RInt_const.
+    rewrite scal_zero_r.
+    auto.
+  + lra.
+  + move => *. 
+    apply subset.
+    lra.
 Qed.
 
 Lemma rmult_scal : forall (r:R) (z:C),
@@ -684,13 +304,10 @@ Proof.
     (try apply: continuity_2d_pt_id2);
     apply: continuity_2d_pt_id1.
 Qed.
-    
-
-      
   
 Open Scope C.
 
-Lemma div_z_continuous_contour: forall a r , 
+Lemma div_z_continuous_contour: forall a (r: posreal) , 
   cts_on_contour (fun q : C => Cinv (q - a)) (circC a r).
 Proof.
   move => a r.
@@ -992,7 +609,7 @@ Proof.
   - auto.
 Qed.
 
-Lemma integral_div_z: forall a r, 
+Lemma integral_div_z: forall a (r: posreal), 
   CInt (circC a r) (fun z => /(z-a)) = 2 * PI * Ci.
 Proof.
   move => a r.
@@ -1410,13 +1027,25 @@ Proof.
     move => *. apply continuous_const.
 Qed.
 
+Lemma ReImSplit_plus : forall z, 
+  z = Re z + Ci * Im z.
+Proof.
+  move => z.
+  rewrite /Re /Ci/Im /Cmult.
+  simpl.
+  set p := RHS.
+  simplify_as_R2 e p.
+  rewrite -surjective_pairing.
+  auto.
+Qed.
+
 Lemma CInt_mult : forall f k gam,
   cts_on_contour f gam -> 
   CInt (gam) (fun z => k * f z) = 
   k * CInt (gam) f .
 Proof.
   move => f k gam cstf.
-  rewrite -(@ReImSplit k).
+  rewrite (@ReImSplit_plus k).
   under CInt_ext_global => t do
     rewrite Cmult_plus_distr_r .
   rewrite CInt_plus. 
@@ -1452,39 +1081,92 @@ Proof.
     move => *. apply continuous_const.
 Qed.
 
-Lemma holo_ball_contour: forall f a (r r': posreal),
-  r' < r ->
-  CHolo_on (ball a r) f ->
-  cts_on_contour f (circC a r').
+Lemma holo_ball_contour: forall f a (r: posreal) D,
+  (forall w, Cmod (a - w) <= r -> D w) ->
+  CHolo_on D f ->
+  cts_on_contour f (circC a r).
 Proof.
-  move => f a r r' bd [f' holo] t tbd.
+  move => f a r D subset [f' holo] t tbd.
   apply/continous_C_AbsRing_1.
   apply: ex_derive_continuous.
-  exists (f' (gamma (circC a r') t)).
+  exists (f' (gamma (circC a r) t)).
   apply holo.
+  apply subset.
   unfold_alg.
-  set p := a + _ + _.
-  simplify_as_R2 e p.
-  rewrite c_circle_norm.
-  rewrite Rabs_pos_eq; first by auto.
+  
+  set p := (x in Cmod x).
+  replace p with (-c_circle r t); last by
+    rewrite /p; field_simplify.
+  rewrite Cmod_opp c_circle_norm_2 Rabs_pos_eq.
+  reflexivity.
   left.
   apply cond_pos.
 Qed.
 
+Lemma Cmod_sym: forall z w, 
+  Cmod( z-w) = Cmod (w - z).
+Proof.
+  move => z w .
+  replace (z-w) with (-(w-z)). 
+  - rewrite Cmod_opp //=.
+  - field_simplify; auto.
+Qed.
 
-Theorem cauchy_integral_formula_center: forall f (r r': posreal) a, 
-  r' < r ->
-  CHolo_on (ball a r) f ->
-  1/(2*PI* Ci) * CInt (circC a r') (fun z => f(z) / (z-a))
+Lemma Cminus_0_eq : forall z w, 
+  z - w = 0 <-> z = w.
+Proof.
+  move => z w.
+  split. 
+  - destruct z,w.
+    rewrite /Cminus /Cplus /Copp //=.
+    replace (RtoC 0) with (R0,R0); last by simpl.
+    move => /pair_equal_spec [??].
+    f_equal; lra.
+  - move => ->.
+    rewrite /Cminus Cplus_opp_r.
+    auto.
+Qed.
+
+Lemma open_neq_C: forall a, 
+  open (fun z:C => z <> a).
+Proof.
+  move => a z neq.
+  apply/prod_c_topology_eq.
+  have := Cmod_ge_0 (z-a).
+  case. 
+  - move => H.
+    exists (mkposreal _ H).
+    move => x xball.
+    simpl in *.
+    move => H'.
+    subst.
+    move: xball.
+    unfold_alg.
+    rewrite -/(Cminus _ _) Cmod_sym.
+    lra.
+  - move => H'. 
+    contradict neq.
+    symmetry in H'.
+    move: H' => /Cmod_eq_0 ?.
+    by apply/ Cminus_0_eq.
+Qed.
+
+
+
+Theorem cauchy_integral_formula_center: forall f (r:posreal) D a, 
+  open D ->
+  (forall w, Cmod (a - w) <= r -> D w) ->
+  CHolo_on D f ->
+  1/(2*PI* Ci) * CInt (circC a r) (fun z => f(z) / (z-a))
   = f(a).
 Proof.
- move => f r r' a r'bd holo. 
+ move => f r D a openD subset holo. 
 
  
- `Begin eq (CInt (circC a r') (fun z => (f(z) - f(a))/ (z-a))). {
+ `Begin eq (CInt (circC a r) (fun z => (f(z) - f(a))/ (z-a))). {
 
  | {( CInt 
-        ( circC a r')  
+        ( circC a r)  
         (fun z : C => ((f z)/(z-a)) + (-(f a) / (z - a))) 
    )}
     under CInt_ext_global => z do
@@ -1511,7 +1193,7 @@ Proof.
 
  move => H.
 
- have ->: CInt (circC a r') (fun z : C => f z / (z - a)) = f a * (2 * PI * Ci) .
+ have ->: CInt (circC a r) (fun z : C => f z / (z - a)) = f a * (2 * PI * Ci) .
  - set p := LHS. 
    replace p with (p + (- f a*(2*PI*Ci)) + f a * 2 * PI * Ci); last by 
      field_simplify.
@@ -1521,35 +1203,55 @@ Proof.
    rewrite -[RHS]Cplus_0_l.
    f_equal.
   apply: squeeze_le => eps.
-  have := @cauchy_integral_aux f r eps a holo.
-  move => [del /(_ 0)%nat [delbd H]].
+  have := @cauchy_integral_aux f r eps a.
+  case. {
+    apply: CHolo_subset; last eauto.
+    move => z zball.
+    apply subset.
+    left.
+    rewrite Cmod_sym.
+    apply zball.
+  }
+  move => del /(_ 0)%nat [delbd H].
   rewrite //= Rmult_1_l in H.
   apply: Rle_trans; last by apply H.
   right.
   f_equal.
   symmetry.
   under CInt_ext_global => t do rewrite Cmult_1_r.  
-  apply: circ_independence_C.
-  3-4: split; first (by apply cond_pos); eauto.
-  2: reflexivity.
+  SearchAbout (open).
+  pose D' := fun z => z<> a /\ D z.
+  apply (@circ_independence _ _ _ _ D').
+  1: left; apply cond_pos.
+  1: apply open_and.
+  2: auto.
+  1: apply open_neq_C.
+  1: auto.
+  move => w bd. 
+  have ?:= cond_pos del.
+  split; last (apply subset; lra).
+  move => ?; subst.
+  move: bd.
+  rewrite /Cminus Cplus_opp_r Cmod_0.
+  lra.
+
   rewrite /Cdiv.
   apply CHolo_on_mult.
   {
     apply CHolo_on_minus; last by apply CHolo_on_const.
     apply: CHolo_subset; last by apply holo.
     move => z.
-    unfold_alg.
-    rewrite -/(Cminus _ _).
-    lra.
+    rewrite /D'.
+    tauto.
   }
   {
     apply: CHolo_on_div; first apply: CHolo_on_minus.
     - apply CHolo_on_id.
     - apply CHolo_on_const.
-    - move => z [H' _] Q.
-      rewrite Q in H'.
-      rewrite Cmod_0 in H'.
-      lra.
+    - move => z [H' _]Q.
+      contradict H'.
+      apply/Cminus_0_eq.
+      auto.
   }
   - field_simplify_eq; first by auto.
     repeat split; move => Q; inversion Q; try lra.

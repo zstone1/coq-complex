@@ -19,6 +19,9 @@ Require Import domains ext_rewrite real_helpers.
 
 Open Scope R.
 
+Definition CHolo f f' z := 
+  Holo f f' z /\ continuous f' z.
+
 
 Lemma is_derive_continuous: forall 
   {K: AbsRing} {V : NormedModule K} f f' x,
@@ -361,9 +364,9 @@ Section PathIndependence .
 
   Hypothesis cled: c < d.
 
-  Local Definition g:= fun p q => (g1 p q, g2 p q).
-  Local Definition g_t := fun p q => (Derive (g1 p) q, Derive (g2 p) q).
-  Local Definition g_r := fun p q => (Derive (g1 ^~ q) p, Derive (g2 ^~ q) p).
+  Let g:= fun p q => (g1 p q, g2 p q).
+  Let g_t := fun p q => (Derive (g1 p) q, Derive (g2 p) q).
+  Let g_r := fun p q => (Derive (g1 ^~ q) p, Derive (g2 ^~ q) p).
 
   Hypothesis smooth: forall r t, 
     c <= r <= d ->
@@ -410,8 +413,8 @@ Section PathIndependence .
   Section DeriveHomotopy.
 
   Variables (u v u' v': R -> R -> R).
-  Local Definition f:= fun z => (u z.1 z.2, v z.1 z.2).
-  Local Definition f':= fun z => (u' z.1 z.2, v' z.1 z.2).
+  Let f:= fun z => (u z.1 z.2, v z.1 z.2).
+  Let f':= fun z => (u' z.1 z.2, v' z.1 z.2).
 
   Hypothesis holo_loc: forall r t, 
     c <= r <= d ->
@@ -424,7 +427,7 @@ Section PathIndependence .
       locally_2d ( fun r0 t0 =>  continuous f' (g r0 t0)) r t.
 
 
-  Definition nice r0 t0 :=
+  Let nice r0 t0 :=
     Holo f f' (g r0 t0) /\
     SmoothFun g1 r0 t0 /\
     SmoothFun g2 r0 t0 /\
@@ -534,9 +537,9 @@ Section PathIndependence .
       move => r0 t0 /differentiable_pt_ex_derive [_ H].
       tauto.
     - move => t tbd.
-      move: locally_nice => /(_ _ _ rbd tbd) nice.
+      move: locally_nice => /(_ _ _ rbd tbd) nice'.
       eapply continuity_2d_pt_ext_loc. {
-        apply: locally_2d_impl nice.
+        apply: locally_2d_impl nice'.
         apply: locally_2d_forall => r0 t0. 
         copy.
         expand_nice.
@@ -554,7 +557,7 @@ Section PathIndependence .
         reflexivity.
         all: repeat diff_help; auto.
       }
-      move: nice => /locally_2d_singleton.
+      move: nice' => /locally_2d_singleton.
       expand_nice.
       simpl in *.
       auto_2d_continuous.
@@ -645,14 +648,10 @@ Section PathIndependence .
   Hypothesis holo_loc: forall r t, 
     c <= r <= d ->
     Rmin a b <= t <= Rmax a b ->
-      locally_2d ( fun r0 t0 =>  Holo f f' (g r0 t0)) r t.
+      locally_2d ( fun r0 t0 =>  CHolo f f' (g r0 t0)) r t.
 
-  Hypothesis cts_derive: forall r t, 
-    c <= r <= d ->
-    Rmin a b <= t <= Rmax a b ->
-      locally_2d ( fun r0 t0 =>  continuous f' (g r0 t0)) r t.
 
-  Definition nice' r0 t0 :=
+  Let nice r0 t0 :=
     Holo f f' (g r0 t0) /\
     SmoothFun g1 r0 t0 /\
     SmoothFun g2 r0 t0 /\
@@ -660,20 +659,19 @@ Section PathIndependence .
 
   Lemma locally_nice': forall r t, 
     c <= r <= d -> 
-    Rmin a b <= t <= Rmax a b ->locally_2d nice' r t.
+    Rmin a b <= t <= Rmax a b ->locally_2d nice r t.
   Proof.
     move => r t tbd rbd.
     move: holo_loc => /(_ r t tbd rbd ).
-    move: cts_derive => /(_ r t tbd rbd ).
     move: smooth => /(_ r t tbd rbd ) [].
     move => H.
-    move => {}H'; have {}H:= locally_2d_and _ _ r t H H'. 
+    rewrite /CHolo.
     move => {}H'; have {}H:= locally_2d_and _ _ r t H H'. 
     move => {}H'; have {}H:= locally_2d_and _ _ r t H H'. 
     apply: locally_2d_impl H.
     apply locally_2d_forall.
     move => *.
-    rewrite /nice'.
+    rewrite /nice.
     tauto. 
   Qed.
   Lemma integrand_cts:
@@ -740,18 +738,19 @@ Section PathIndependence .
       + move => r' t' r'bd t'bd.
         apply: locally_2d_impl (holo_loc  r'bd t'bd).
         apply locally_2d_forall.
-        move => r0 t0 H.
+        rewrite /CHolo.
+        move => r0 t0 [H _].
         eapply is_derive_ext with (f0:=f).
           move => t.
-          rewrite /PathIndependence.f /u /v -?surjective_pairing //=.
-        rewrite /PathIndependence.f' /u' /v' -?surjective_pairing //=.
+          rewrite /u /v -?surjective_pairing //=.
+        rewrite /u' /v' -?surjective_pairing //=.
       + move => r' t' r'bd t'bd.
-        apply: locally_2d_impl (cts_derive  r'bd t'bd).
+        apply: locally_2d_impl (holo_loc  r'bd t'bd).
         apply locally_2d_forall.
-        move => r0 t0 H.
+        move => r0 t0 [_ H].
         eapply continuous_ext with (f0:=f').
           move => t.
-          rewrite /PathIndependence.f' /u' /v' -?surjective_pairing //=.
+          rewrite /u' /v' -?surjective_pairing //=.
         auto.
     - pose u := fun p q => Ropp (f (p,q)).2.
       pose v := fun p q => (f (p,q)).1.
@@ -819,8 +818,7 @@ Section PathIndependence .
       + move => r0 t0 r0bd t0bd.
         apply: locally_2d_impl (holo_loc r0bd t0bd).
         apply locally_2d_forall.
-        move => r' t' H.
-        rewrite /PathIndependence.f /PathIndependence.f'.
+        move => r' t' [H _].
         eapply is_derive_ext. 
           move => t.
           rewrite -/(h t) hf.
@@ -829,10 +827,10 @@ Section PathIndependence .
         apply: Holo_mult.
         auto.
       + move => r0 t0 r0bd t0bd.
-        apply: locally_2d_impl (cts_derive r0bd t0bd).
+        apply: locally_2d_impl (holo_loc r0bd t0bd).
         apply locally_2d_forall.
-        move => r' t' H.
-        rewrite /PathIndependence.f' -/h'.
+        move => r' t' [_ H].
+        rewrite -/h'.
         eapply continuous_ext. 
           move => x. 
           rewrite hf'. 
