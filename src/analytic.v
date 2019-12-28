@@ -23,10 +23,10 @@ Proof. move => *. field_simplify_eq; auto. Qed.
 
 Section FilterlimFunc.
 
-Context {T:UniformSpace} {F: (T -> Prop) -> Prop } {FF: ProperFilter F}.
+Context {T:Type} {F: (T -> Prop) -> Prop } {FF: ProperFilter F}.
 
 Open Scope C.
-Lemma filterlim_mult: forall {U:UniformSpace}
+Lemma filterlim_mult_bounded: forall {U:UniformSpace}
   (f: T -> U -> C) (g: U -> C) flim,
   (exists (M:posreal), forall z, norm(g z) < M  ) ->
   filterlim (fun u z=> f u z ) F (locally flim) ->
@@ -183,10 +183,6 @@ Qed.
 Definition contour_inside (g:Contour) D:= 
   forall t, l_end g <= t <= r_end g -> D (gamma g t).
 
-(**I need this to deal with some compactness issues. 
-   very likely it can be removed by requring D to be decidable, so
-   and because square_in becomes decidable.*)
-Axiom classical: forall P:Prop, ~ ~P  <-> P.
 
 Open Scope C.
 Lemma uniform_limits_CInt : forall 
@@ -277,13 +273,13 @@ Proof.
       apply/continous_C_NormedModule.
       apply cts.
       auto.
-  - apply filterlim_mult; first by apply: bounded.
-    apply: (filterlim_compose_fam).
+  - apply filterlim_mult_bounded; first by apply: bounded.
+    apply: (@filterlim_compose_fam).
     1: apply compactly_non_trivial; eauto.
     1: auto.
     have := @path_in_circles gamma_bar D (l_end gam) (r_end gam)
              openD (ltac:(auto)) (ltac:(auto)).
-    rewrite classical.
+    rewrite path_independence.not_not_impl.
     case.
     + move => *. 
       rewrite /gamma_bar /extension_C0.
@@ -333,6 +329,7 @@ Proof.
   - move => z [+ /is_RInt_unique ->].
     apply.
 Qed.
+End FilterlimFunc.
 
 Open Scope C.
 Lemma C_sum_pow_n: forall (z : C) (n : nat),
@@ -446,29 +443,140 @@ Proof.
   apply: Hierarchy.filterlim_mult.
 Qed.
 
+Lemma Cplus_plus_complete: forall (z w:C_R_CompleteNormedModule), plus z w = z + w.
+Proof.
+ unfold_alg.
+Qed.
+Lemma Cplus_plus_C: forall (z w:C), plus z w = z + w.
+Proof.
+ unfold_alg.
+Qed.
+
+Lemma cts_contour_sum: forall f gam n,
+  (forall m, cts_on_contour (fun z => f m z) gam) ->
+  cts_on_contour ( fun z => sum_n (fun n => f n z) n) gam.
+Proof.
+  move => f gam + cts.
+  elim.
+  - move => t tbd.
+    apply: continuous_ext.
+      move => x.
+      rewrite sum_O.
+    reflexivity.
+    apply cts.
+    auto.
+  - move => n IH.
+    move => t tbd.
+    apply: continuous_ext.
+      move => x.
+      rewrite sum_Sn Cplus_plus_C. 
+    reflexivity.
+    apply: continuous_plus.
+    1: apply IH; auto.
+     apply: cts; auto.
+Qed.
+
+Lemma sum_n_CInt : forall f gam n, 
+  (forall m, cts_on_contour (f m) gam) ->
+  sum_n (fun m => CInt gam (fun z => f m z)) n = 
+  CInt gam (fun z => sum_n (fun m => f m z) n).
+Proof.
+  move => f gam  + cts.
+  elim.
+  { rewrite sum_O.
+    symmetry.
+    under CInt_ext.
+      move => t tbd.
+      rewrite sum_O.
+    over.
+    auto.
+  }
+  move => n IH.
+  rewrite sum_Sn.
+  rewrite Cplus_plus_complete IH. 
+  rewrite -CInt_plus.
+  2: apply: cts.
+  2: apply: cts_contour_sum; auto.
+  rewrite (@CInt_ext _ (fun z:C => sum_n (f^~ z) (S n))); auto.
+  move => t tbd.
+  rewrite sum_Sn Cplus_plus_C.
+  auto.
+Qed.
+
 Definition PCoef := 1/(2*PI* Ci).
 
-Theorem holo_analytic : forall (f:C -> C) (r r': posreal ) z, 
-  r' < r ->
-  CHolo_on (ball z r) f ->
-  forall a, ball z r' a ->
-  
-  @is_pseries 
-    C_AbsRing
-    C_NormedModule
-    (fun n => PCoef * CInt (circC a r') 
-      (fun w => f(w)/(Cpow (w-a) n))
-    ) a (f a).
+Theorem holo_analytic : forall (f:C -> C) (r: posreal) D a z, 
+  open D ->
+  CHolo_on D f ->
+  (forall w, Cmod (a - w) <= r -> D w) ->
+  @ball (AbsRing_UniformSpace C_AbsRing) a r z ->
+  @is_pseries C_AbsRing C_NormedModule
+    (fun n => PCoef * CInt (circC a r) 
+      (fun w => f(w)/(Cpow (w-z) n))
+    ) (a-z) (f z).
 Proof.
-  move => f r r' z r'ler CHolo a aball.
+  move => f r D a z openD CHolo subset aball.
+  rewrite -(@cauchy_integral_formula f r D a z ) -/PCoef; auto.
+  rewrite /is_pseries /is_series.
+  eapply filterlim_ext. 
+    move => x.
+    eapply sum_n_ext.
+      move => n.
+      set p := CInt _ _.
+      set q := RHS.
+      replace q with (PCoef * (scal (pow_n (a- z) n) p)); last by (
+        rewrite /q; unfold_alg; field_simplify_eq;
+        rewrite -Cmult_assoc [_*p]Cmult_comm Cmult_assoc).
+        rewrite /p.
+  reflexivity.
+  eapply filterlim_ext.
+    move => x.
+    rewrite sum_n_mult_l.
+  reflexivity.
+  set p := (q in PCoef * q).
+  replace (PCoef * p) with (mult PCoef p ); last unfold_alg.
+  apply: filterlim_comp_2.
+  1: apply filterlim_const.
+  2: apply: filterlim_filter_le_2.
+  3: apply: filterlim_filter_le_1.
+  4: apply: @filterlim_mult C_AbsRing PCoef p.
+  2: move => *; apply prod_c_topology_eq; auto.
+  2: { move => P [Q R F1 F2 impl].
+       apply: Filter_prod .
+       2: apply/prod_c_topology_eq; apply F2.
+       1: apply/prod_c_topology_eq; apply F1.
+       auto.
+  }
+  rewrite /p.
+  eapply filterlim_ext. 
+    move => x.
+    eapply sum_n_ext. 
+      move => n.
+        rewrite /scal /=/mult /= -CInt_mult.
+  reflexivity.
+  admit.
+  eapply filterlim_ext. 
+    move => x.
+    rewrite [RHS]sum_n_CInt.
+  reflexivity.
+  admit.
+  pose h := fun 
+    n w => sum_n (fun m : nat => pow_n (a - z) m * (f w / Cpow (w - z) m)) n.
+  apply: @uniform_limits_CInt.
+  Set Printing Implicit.
+    
+
+
+    
+      SearchAbout (scal).
+  
+  apply: filterlim_mult.
+
 
   `Begin eq (f(z)). {
 
-  | {( PCoef * CInt (circC z r') ( fun w => (f w)/(w-z)) )} 
-    rewrite (@cauchy_integral_formula f r); auto.
+  | {( PCoef * CInt (circC a r) ( fun w => (f w)/(w-z)) )} 
 
-  | {( PCoef * CInt _ (fun w => (f w)/((w-a) - (z-a))) )} idtac.
-    rewrite (@cauchy_integral_formula f r); auto.
 
   }
 

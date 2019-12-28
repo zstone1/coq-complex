@@ -1272,19 +1272,16 @@ Proof.
   lra.
 Qed.
 
-Theorem cauchy_integral_formula: forall f (r: posreal) D a, 
+Theorem cauchy_integral_formula: forall f (r: posreal) D a z, 
   open D ->
   CHolo_on D f ->
   (forall w, Cmod (a - w) <= r -> D w) ->
-  forall z, 
-    @ball (AbsRing_UniformSpace C_AbsRing) a r z -> 
-    1/(2*PI* Ci) * CInt (circC a r) (fun w => f(w) / (w-z))
-    = f(z).
+  @ball (AbsRing_UniformSpace C_AbsRing) a r z -> 
+  1/(2*PI* Ci) * CInt (circC a r) (fun w => f(w) / (w-z)) = f(z).
 Proof.
-  move => f r D a openD. 
+  move => f r D a z openD. 
   copy.
-  move => [f' holo'] holo subset. 
-  move => z zball.
+  move => [f' holo'] holo subset zball.
   have ? := cond_pos r.
   have ?:= @Cmod_ge_0 (z-a).
   pose delr' := (r - (Cmod (z -a)%C))%R.

@@ -20,7 +20,7 @@ Proof. move => *. field_simplify_eq; auto. Qed.
 
 Section UniformOn.
 
-Context {U V:UniformSpace}.
+Context {U:Type} {V: UniformSpace}.
 
 Definition uniformly_on (E: U -> Prop) f (P: (U -> V) -> Prop) := 
   exists (del: posreal), forall g, 
@@ -164,7 +164,7 @@ Proof.
   auto.
 Qed.
 
-Lemma filterlim_on_family {T: UniformSpace}: 
+Lemma filterlim_on_family {T: Type}: 
   forall (Fam: (U -> Prop) -> Prop) (f_: T -> U -> V) flim F {FF: Filter F},
   (forall (E: U -> Prop), Fam E -> filterlim (f_) F (uniformly_on E flim)) <-> 
   filterlim (f_) F (uniformly_on_family Fam flim) .  
@@ -320,7 +320,7 @@ Proof.
 
 Qed.
 
-Lemma filterlim_compose_aux {T: UniformSpace} {T': UniformSpace}: 
+Lemma filterlim_compose_aux {T: Type} {T': Type}: 
   forall (Fam: (U -> Prop) -> Prop) (f_: T -> U -> V) flim F {FF: Filter F} (g: T' -> U),
   filterlim (f_) F (uniformly_on_family Fam flim) ->
   (exists E, Fam E /\ (forall t':T', E (g t'))) ->
@@ -343,7 +343,7 @@ Proof.
   apply: family_le_on_one; eauto.
 Qed.
 
-Lemma filterlim_compose_fam {T: UniformSpace} {T': UniformSpace}: 
+Lemma filterlim_compose_fam {T T': Type}: 
   forall (Fam: (U -> Prop) -> Prop) (f_: T -> U -> V) flim F {FF: Filter F} (g: T' -> U),
   (exists E , Fam E) ->
   filterlim (f_) F (uniformly_on_family Fam flim) ->
