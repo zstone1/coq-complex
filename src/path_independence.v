@@ -283,78 +283,92 @@ Proof.
     lra.
 Qed.
 
+Lemma ReImSplit : forall z, 
+  (Re z, Im z) = z.
+Proof.
+  move => z.
+  rewrite /Re /Im /Cplus //=.
+  set p := LHS.
+  simplify_as_R2 e p.
+  rewrite -surjective_pairing //=.
+Qed.
+  
+Lemma split_cint : forall (f: R -> C) a b, 
+  ex_RInt f a b -> 
+  RInt (V:=C_R_CompleteNormedModule) f a b = 
+  (RInt (compose Re f) a b, RInt (compose Im f) a b).
+Proof.
+  move => f a b [l isR]. 
+  rewrite /Re /Im /compose.
+  apply: is_RInt_unique.
+  apply: is_RInt_fct_extend_pair.
+  - move: isR.
+    copy => /is_RInt_fct_extend_fst /is_RInt_unique ->.
+    apply is_RInt_fct_extend_fst.
+  - move: isR.
+    copy => /is_RInt_fct_extend_snd /is_RInt_unique ->.
+    apply is_RInt_fct_extend_snd.
+Qed.
+      
+Lemma is_derive_pair' {K : AbsRing} {M : NormedModule K} :
+  forall (f g: K -> M) (x: K) f' g', 
+  is_derive f x (f') ->
+  is_derive g x (g') ->
+  is_derive (fun q => (f q, g q)) x (f', g').
+Proof.
+  pose h (p q:M) := (p,q).
+  move => *.
+  apply: (filterdiff_comp_2 _ _ h).
+  - auto_derive_all. 
+  - auto_derive_all. 
+  - under (ext_filterdiff_d) => x.
+      have e: ((x.1, x.2)=x); first by case: x. 
+      rewrite e.
+    over.
+    rewrite /h //=.
+    under ext_filterdiff_loc.
+      { apply global_local; 
+        instantiate (1:= id); 
+        auto.
+      }
+      move => x _. 
+      have ->: ((x.1, x.2)=x); first by case: x.
+    over.
+    auto_derive_all.
+Qed.
 (* I suspect that the proposition I'm working with 
 are actually decidable anyway, so this is probably overkill*)
 Axiom excluded_middle: forall P:Prop, P \/ ~P.
 
+Ltac expand_nice := 
+  let holo := fresh in 
+    move => [holo [
+       [?[?[?[??]]]] [
+       [?[?[?[??]]]] +]]];
+    copy => /(continuous_comp _ fst) /= Cu';
+    move => /(continuous_comp _ snd) /= Cv';
+    move: holo;
+    copy => /holo_differentiable_pt_lim_imaginary ?
+            /holo_differentiable_pt_lim_real ?.
 Lemma not_not_impl: forall (P:Prop), ~ ~ P <-> P.
 Proof.
   move => P. tauto.
 Qed.
 
-Section DeriveHomotopy .
-  Variables (u v u' v': R -> R -> R) (a b c d:R).
+Section PathIndependence .
+  Variables (a b c d:R).
   Variables (g1 g2 : R -> R -> R ).
 
+  Hypothesis cled: c < d.
+
   Local Definition g:= fun p q => (g1 p q, g2 p q).
-  Local Definition f:= fun z => (u z.1 z.2, v z.1 z.2).
-  Local Definition f':= fun z => (u' z.1 z.2, v' z.1 z.2).
   Local Definition g_t := fun p q => (Derive (g1 p) q, Derive (g2 p) q).
   Local Definition g_r := fun p q => (Derive (g1 ^~ q) p, Derive (g2 ^~ q) p).
-
-  Lemma inside': forall t, Rmin a b < t < Rmax a b -> 
-    0 < Rmin (Rabs(t-a)) (Rabs(t-b)).
-  Proof.
-    move => t tbd.
-      apply Rmin_glb_lt; apply Rabs_pos_lt;
-      eapply Rminus_eq_contra; move => ?; subst;
-      destruct (Rle_dec a b);
-      try (rewrite Rmin_left in tbd; auto; lra);
-      try (rewrite Rmax_left in tbd; auto; lra);
-      try (rewrite Rmax_right in tbd; auto; lra);
-      try (rewrite Rmin_right in tbd; auto; lra).
-  Qed.
-
-  Hypothesis cled: c < d.
-  Hypothesis holo_loc: forall r t, 
-    c <= r <= d ->
-    Rmin a b <= t <= Rmax a b ->
-      locally_2d ( fun r0 t0 =>  Holo f f' (g r0 t0)) r t.
-
-  Hypothesis cts_derive: forall r t, 
-    c <= r <= d ->
-    Rmin a b <= t <= Rmax a b ->
-      locally_2d ( fun r0 t0 =>  continuous f' (g r0 t0)) r t.
 
   Hypothesis smooth: forall r t, 
     c <= r <= d ->
     Rmin a b <= t <= Rmax a b ->
     SmoothPath g1 g2 r t.
-
-  Definition nice r0 t0 :=
-    Holo f f' (g r0 t0) /\
-    SmoothFun g1 r0 t0 /\
-    SmoothFun g2 r0 t0 /\
-    continuous f' (g r0 t0).
-
-  Lemma locally_nice: forall r t, 
-    c <= r <= d -> 
-    Rmin a b <= t <= Rmax a b ->locally_2d nice r t.
-  Proof.
-    move => r t tbd rbd.
-    move: holo_loc => /(_ r t tbd rbd ).
-    move: cts_derive => /(_ r t tbd rbd ).
-    move: smooth => /(_ r t tbd rbd ) [].
-    move => H.
-    move => {}H'; have {}H:= locally_2d_and _ _ r t H H'. 
-    move => {}H'; have {}H:= locally_2d_and _ _ r t H H'. 
-    move => {}H'; have {}H:= locally_2d_and _ _ r t H H'. 
-    apply: locally_2d_impl H.
-    apply locally_2d_forall.
-    move => *.
-    rewrite /nice.
-    tauto. 
-  Qed.
 
   Lemma unif_r: forall (P: R -> R -> Prop) r, c <= r <= d -> 
     (forall r' t', c <= r' <= d -> Rmin a b <= t' <= Rmax a b ->
@@ -393,6 +407,47 @@ Section DeriveHomotopy .
     apply r'bd.
   Qed.
 
+  Section DeriveHomotopy.
+
+  Variables (u v u' v': R -> R -> R).
+  Local Definition f:= fun z => (u z.1 z.2, v z.1 z.2).
+  Local Definition f':= fun z => (u' z.1 z.2, v' z.1 z.2).
+
+  Hypothesis holo_loc: forall r t, 
+    c <= r <= d ->
+    Rmin a b <= t <= Rmax a b ->
+      locally_2d ( fun r0 t0 =>  Holo f f' (g r0 t0)) r t.
+
+  Hypothesis cts_derive: forall r t, 
+    c <= r <= d ->
+    Rmin a b <= t <= Rmax a b ->
+      locally_2d ( fun r0 t0 =>  continuous f' (g r0 t0)) r t.
+
+
+  Definition nice r0 t0 :=
+    Holo f f' (g r0 t0) /\
+    SmoothFun g1 r0 t0 /\
+    SmoothFun g2 r0 t0 /\
+    continuous f' (g r0 t0).
+
+  Lemma locally_nice: forall r t, 
+    c <= r <= d -> 
+    Rmin a b <= t <= Rmax a b ->locally_2d nice r t.
+  Proof.
+    move => r t tbd rbd.
+    move: holo_loc => /(_ r t tbd rbd ).
+    move: cts_derive => /(_ r t tbd rbd ).
+    move: smooth => /(_ r t tbd rbd ) [].
+    move => H.
+    move => {}H'; have {}H:= locally_2d_and _ _ r t H H'. 
+    move => {}H'; have {}H:= locally_2d_and _ _ r t H H'. 
+    move => {}H'; have {}H:= locally_2d_and _ _ r t H H'. 
+    apply: locally_2d_impl H.
+    apply locally_2d_forall.
+    move => *.
+    rewrite /nice.
+    tauto. 
+  Qed.
 
   Lemma diff_integrand_t: forall r t,
     c <= r <= d ->
@@ -464,16 +519,6 @@ Section DeriveHomotopy .
     try apply continuity_2d_pt_opp;
     simpl in *; auto).
 
-  Ltac expand_nice := 
-    let holo := fresh in 
-      move => [holo [
-         [?[?[?[??]]]] [
-         [?[?[?[??]]]] +]]];
-      copy => /(continuous_comp _ fst) /= Cu';
-      move => /(continuous_comp _ snd) /= Cv';
-      move: holo;
-      copy => /holo_differentiable_pt_lim_imaginary ?
-              /holo_differentiable_pt_lim_real ?.
 
   Lemma D: forall r, 
     c <= r <= d ->  
@@ -593,314 +638,272 @@ Section DeriveHomotopy .
       move => _ + _ _ ;
       move /continuity_2d_pt_continuous_right; auto.
   Qed.
-End DeriveHomotopy.
+  End DeriveHomotopy.
 
-Lemma ReImSplit : forall z, 
-  (Re z, Im z) = z.
-Proof.
-  move => z.
-  rewrite /Re /Im /Cplus //=.
-  set p := LHS.
-  simplify_as_R2 e p.
-  rewrite -surjective_pairing //=.
-Qed.
-  
-Lemma split_cint : forall (f: R -> C) a b, 
-  ex_RInt f a b -> 
-  RInt (V:=C_R_CompleteNormedModule) f a b = 
-  (RInt (compose Re f) a b, RInt (compose Im f) a b).
-Proof.
-  move => f a b [l isR]. 
-  rewrite /Re /Im /compose.
-  apply: is_RInt_unique.
-  apply: is_RInt_fct_extend_pair.
-  - move: isR.
-    copy => /is_RInt_fct_extend_fst /is_RInt_unique ->.
-    apply is_RInt_fct_extend_fst.
-  - move: isR.
-    copy => /is_RInt_fct_extend_snd /is_RInt_unique ->.
-    apply is_RInt_fct_extend_snd.
-Qed.
-      
-Lemma is_derive_pair' {K : AbsRing} {M : NormedModule K} :
-  forall (f g: K -> M) (x: K) f' g', 
-  is_derive f x (f') ->
-  is_derive g x (g') ->
-  is_derive (fun q => (f q, g q)) x (f', g').
-Proof.
-  pose h (p q:M) := (p,q).
-  move => *.
-  apply: (filterdiff_comp_2 _ _ h).
-  - auto_derive_all. 
-  - auto_derive_all. 
-  - under (ext_filterdiff_d) => x.
-      have e: ((x.1, x.2)=x); first by case: x. 
-      rewrite e.
-    over.
-    rewrite /h //=.
-    under ext_filterdiff_loc.
-      { apply global_local; 
-        instantiate (1:= id); 
-        auto.
-      }
-      move => x _. 
-      have ->: ((x.1, x.2)=x); first by case: x.
-    over.
-    auto_derive_all.
-Qed.
-Section PathIndependence.
-  Variables (f f': C -> C) (a b c d:R).
-  Variables (g1 g2 : R -> R -> R ).
+  Variables (f f': C -> C).
 
-  Local Definition gg := fun p q => (g1 p q, g2 p q).
-  Local Definition gg_t := fun p q => (Derive (g1 p) q, Derive (g2 p) q).
-  Local Definition gg_r := fun p q => (Derive (g1 ^~ q) p, Derive (g2 ^~ q) p).
-
-  Hypothesis cled: c < d.
   Hypothesis holo_loc: forall r t, 
     c <= r <= d ->
     Rmin a b <= t <= Rmax a b ->
-      locally_2d ( fun r0 t0 =>  Holo f f' (gg r0 t0)) r t.
+      locally_2d ( fun r0 t0 =>  Holo f f' (g r0 t0)) r t.
 
   Hypothesis cts_derive: forall r t, 
     c <= r <= d ->
     Rmin a b <= t <= Rmax a b ->
-      locally_2d ( fun r0 t0 =>  continuous f' (gg r0 t0)) r t.
+      locally_2d ( fun r0 t0 =>  continuous f' (g r0 t0)) r t.
 
-  Hypothesis smooth: forall r t, 
-    c <= r <= d ->
-    Rmin a b <= t <= Rmax a b ->
-    SmoothPath g1 g2 r t.
+  Definition nice' r0 t0 :=
+    Holo f f' (g r0 t0) /\
+    SmoothFun g1 r0 t0 /\
+    SmoothFun g2 r0 t0 /\
+    continuous f' (g r0 t0).
 
-  Lemma path_independence_part_4:
-    forall r, c <= r <= d ->
-    is_derive (fun r0 => 
-      RInt (V:=C_R_CompleteNormedModule)
-        (fun t0 : R => f (gg r0 t0) * gg_t r0 t0) a b) r 
-      (f (gg r b) * gg_r r b - f (gg r a) * gg_r r a )%C.
+  Lemma locally_nice': forall r t, 
+    c <= r <= d -> 
+    Rmin a b <= t <= Rmax a b ->locally_2d nice' r t.
   Proof.
-    move => r rbd.
-    eapply is_derive_ext.
-      move => t'.
-      rewrite [RHS]split_cint /compose.
-    reflexivity.
-    1: shelve.
-    rewrite -[x in is_derive _ _ x]ReImSplit.
-    apply: is_derive_pair'.
-    - pose u := fun p q => (f (p,q)).1.
-      pose v := fun p q => (f (p,q)).2.
-      pose u' := fun p q => (f' (p,q)).1.
-      pose v' := fun p q => (f' (p,q)).2.
-      apply (@path_independence_part_3_real u v u' v' _ _ c d  ); auto.
-      
-    apply: filterdiff_comp_2 with (h := pair).
-      eapply is_derive_ext.
-        move => t'.
-        rewrite split_cint.
-        simpl.
-        rewrite /compose.
-      reflexivity.
-      apply ex_RInt_continuous.
-
-
-    change (h c = h d).
-    have ga_eq: (forall r, g c a = g r a) by
-      move => r'; move: (H c r') => [-> _] //=.
-     
-    have gb_eq: (forall r, g c b = g r b) by
-      move => r'; move: (H c r') => [_ ->] //=.
-    apply:eq_is_derive ; last by [].
-    move => r rbd.
-
-    have Da: ((0,0) = g_r r a). {
-      rewrite /g_r.
-      f_equal.
-      under Derive_ext => r'.
-        move: (@ga_eq r') => /pair_equal_spec [<- _]. 
-      over.
-      rewrite Derive_const.
-      auto.
-      under Derive_ext => r'.
-        move: (@ga_eq r') => /pair_equal_spec [_ <-]. 
-      over.
-      rewrite Derive_const.
-      auto.
-    }
-
-    have Db: ((0,0) = g_r r b). {
-      rewrite /g_r.
-      f_equal.
-      under Derive_ext => r'.
-        move: (@gb_eq r') => /pair_equal_spec [<- _]. 
-      over.
-      rewrite Derive_const.
-      auto.
-      under Derive_ext => r'.
-        move: (@gb_eq r') => /pair_equal_spec [_ <-]. 
-      over.
-      rewrite Derive_const.
-      auto.
-    }
-    have ->: (zero = Re(f (g r b) * g_r r b - f (g r a) * g_r r a )%C) by 
-      rewrite -Da -Db ?Cmult_0_r /zero /=; lra.
-
-      apply path_independence_part_3_real.
-      auto.
-    Qed.
-
-  Lemma path_independence_part_loop_real:
-      (forall r,  c <= r <= d -> 
-                  (g r a = g r b) /\ 
-                  (g_r r a = g_r r b)) ->
-      RInt (fun t0 : R => Re (f (g c t0) * g_t c t0)) a b = 
-       RInt (fun t0 : R => Re (f (g d t0) * g_t d t0)) a b.
-    Proof.
-      move => loop.
-      change (h c = h d).
-      apply:eq_is_derive ; last by [].
-      move => r rbd.
-      have ->: (zero = Re(f (g r b) * g_r r b - f (g r a) * g_r r a )%C) by
-        case : (loop r); first lra;
-        move => -> -> //=; 
-        rewrite /zero //=;
-        lra.
-      rewrite /h.
-      have open_r: (open (fun z => Rmin c d < z < Rmax c d)) 
-        by apply: open_and; [apply: open_gt | apply: open_lt].
-      apply path_independence_part_3_real.
-      lra.
+    move => r t tbd rbd.
+    move: holo_loc => /(_ r t tbd rbd ).
+    move: cts_derive => /(_ r t tbd rbd ).
+    move: smooth => /(_ r t tbd rbd ) [].
+    move => H.
+    move => {}H'; have {}H:= locally_2d_and _ _ r t H H'. 
+    move => {}H'; have {}H:= locally_2d_and _ _ r t H H'. 
+    move => {}H'; have {}H:= locally_2d_and _ _ r t H H'. 
+    apply: locally_2d_impl H.
+    apply locally_2d_forall.
+    move => *.
+    rewrite /nice'.
+    tauto. 
   Qed.
-
   Lemma integrand_cts:
-      (forall r, c <= r <= d -> 
-                  (g r a = g r b) /\ 
-                  (g_r r a = g_r r b)) ->
-
       (forall r t, c <= r <= d ->
                   Rmin a b <= t <= Rmax a b ->
-      continuous (fun t0 => f (g r t0) * g_t r t0) t).
+      locally_2d (fun r' t' => 
+        continuous (fun t0 => f (g r' t0) * g_t r' t0) t') r t).
   Proof.
-    move => loop r t rbd tbd.
-    move: (locally_nice rbd tbd) => /locally_2d_singleton.
+    move => r t rbd tbd.
+    move: (locally_nice' rbd tbd) => H.
+    apply: locally_2d_impl H.
+    apply: locally_2d_forall.
+    move => u v.
+    copy.
+    move => [+ _]=> /is_derive_continuous ?.
     expand_nice.
       apply/continous_C_AbsRing.
       apply: continuous_mult.
       + apply continuous_comp.
         * rewrite /g. auto_continuous_aux; apply: ex_derive_continuous; diff_help.
         * apply/continous_C_NormedModule. 
-          move: (holo_loc rbd tbd) => /locally_2d_singleton /is_derive_continuous q.
-          apply: filterlim_filter_le_1; last exact q.
+          apply: filterlim_filter_le_1; last auto.
           move => P; apply prod_c_topology_eq.
-      + rewrite /g_t //=. apply continuous_comp_2.
-        1,2: apply: ex_derive_continuous; diff_help.
-        Set Printing Implicit.
-        eapply continuous_ext. move => ?.
-          rewrite -surjective_pairing.
-        reflexivity.
-        apply: filterlim_filter_le_2;
-        move => P. 
-        apply prod_c_topology_eq.
+          auto.
+      + rewrite /g_t.
+        change_topology.
+        apply: continuous_pair.
+        apply: (@continuity_2d_pt_continuous_right 
+          (fun r' t' => (Derive (g1 r') t'))).
+        apply: differentiable_continuity_pt.
+        auto.
+        apply: (@continuity_2d_pt_continuous_right 
+          (fun r' t' => (Derive (g2 r') t'))).
+        apply: differentiable_continuity_pt.
         auto.
   Qed.
+   Local Ltac prod_int := 
+      rewrite -?ex_RInt_prod;
+      apply ex_RInt_continuous => z /(inside a'bd b'bd) zbd;
+      apply: integrand_cts; eauto.
 
-  End DeriveHomotopy.
+  Lemma path_independence_part_4:
+    forall r, c <= r <= d ->
+    is_derive (fun r0 => 
+      RInt (V:=C_R_CompleteNormedModule)
+        (fun t0 : R => f (g r0 t0) * g_t r0 t0) a b) r 
+      (f (g r b) * g_r r b - f (g r a) * g_r r a )%C.
+  Proof.
+    move => r rbd.
+    eapply is_derive_ext_loc.
+      move: (unif_r rbd integrand_cts) => H.
+      apply: filter_imp H.
+      move => r' *.
+      rewrite [RHS]split_cint /compose; last by
+        rewrite -ex_RInt_prod; apply ex_RInt_continuous => * //=; auto.
+    reflexivity.
+    rewrite -[x in is_derive _ _ x]ReImSplit.
+    apply: is_derive_pair'.
+    - pose u := fun p q => (f (p,q)).1.
+      pose v := fun p q => (f (p,q)).2.
+      pose u' := fun p q => (f' (p,q)).1.
+      pose v' := fun p q => (f' (p,q)).2.
+      apply (@path_independence_part_3_real u v u' v' ); auto.
+      + move => r' t' r'bd t'bd.
+        apply: locally_2d_impl (holo_loc  r'bd t'bd).
+        apply locally_2d_forall.
+        move => r0 t0 H.
+        eapply is_derive_ext with (f0:=f).
+          move => t.
+          rewrite /PathIndependence.f /u /v -?surjective_pairing //=.
+        rewrite /PathIndependence.f' /u' /v' -?surjective_pairing //=.
+      + move => r' t' r'bd t'bd.
+        apply: locally_2d_impl (cts_derive  r'bd t'bd).
+        apply locally_2d_forall.
+        move => r0 t0 H.
+        eapply continuous_ext with (f0:=f').
+          move => t.
+          rewrite /PathIndependence.f' /u' /v' -?surjective_pairing //=.
+        auto.
+    - pose u := fun p q => Ropp (f (p,q)).2.
+      pose v := fun p q => (f (p,q)).1.
+      pose u' := fun p q => Ropp (f' (p,q)).2.
+      pose v' := fun p q => (f' (p,q)).1.
+      pose h := fun z => (u z.1 z.2, v z.1 z.2).
+      pose h' := fun z => (u' z.1 z.2, v' z.1 z.2).
+      have hf : forall z, h z = Ci * f z by 
+        move => z; rewrite /h/u/v //=/Cmult;
+        set l := LHS;
+        simplify_as_R2 e l;
+        set p := RHS;
+        simplify_as_R2 e p;
+        rewrite -?surjective_pairing.
+      have hf' : forall z, h' z = Ci * f' z by 
+        move => z; rewrite /h'/u'/v' //=/Cmult;
+        set l := LHS;
+        simplify_as_R2 e l;
+        set p := RHS;
+        simplify_as_R2 e p;
+        rewrite -?surjective_pairing.
+      have toRe: forall r t, Im ( f (g r t) * g_t r t) = Ropp (Re (h (g r t) * g_t r t)). {
+        move => r' t'. 
+        rewrite /h /u/v /g//=.
+        simpl.
+        field_simplify_eq; auto.
+      }
+      eapply is_derive_ext_loc.
+        move : (unif_r rbd locally_nice') => H. 
+        apply: filter_imp H.
+        move => r' nice'.
+        under RInt_ext => x _.
+          rewrite toRe.
+        over.
+        rewrite RInt_opp.
+      reflexivity.
+      1: {
+        apply ex_RInt_continuous.
+        move => z zbd.
+        simpl.
+        move: (nice' z zbd).
+        copy.
+        move => [/is_derive_continuous holo _].
+        expand_nice.
+        repeat auto_continuous_aux.
+        1,3: apply continuous_comp.
+        2,4: auto_continuous_aux.
+        1,2: apply continuous_comp.
+        5,6: apply: ex_derive_continuous; try diff_help. 
+        2,4: apply/ continous_C_NormedModule. 
+        Set Printing Implicit.
+        2,3: apply/ continous_C_NormedModule; apply: filterlim_filter_le_1; last 
+               apply holo.
+        2,3: move => *; apply prod_c_topology_eq; auto.
+        all: rewrite /g;  apply continuous_comp_2.
+        all: try now (apply: ex_derive_continuous; repeat diff_help; auto).
+        all: repeat auto_continuous_aux.
+      }
+      have ->: (Im (f (g r b) * g_r r b - f (g r a) * g_r r a)) =
+                 (opp (Re(h (g r b) * g_r r b - h (g r a) * g_r r a))) by
+        rewrite /opp /=/g/h/u/v; field_simplify_eq. 
+      apply: is_derive_opp.
+      
+      apply: (@path_independence_part_3_real u v u' v' ); auto.
+      + move => r0 t0 r0bd t0bd.
+        apply: locally_2d_impl (holo_loc r0bd t0bd).
+        apply locally_2d_forall.
+        move => r' t' H.
+        rewrite /PathIndependence.f /PathIndependence.f'.
+        eapply is_derive_ext. 
+          move => t.
+          rewrite -/(h t) hf.
+        reflexivity.
+        rewrite -/(h' (g r' t')) hf'.
+        apply: Holo_mult.
+        auto.
+      + move => r0 t0 r0bd t0bd.
+        apply: locally_2d_impl (cts_derive r0bd t0bd).
+        apply locally_2d_forall.
+        move => r' t' H.
+        rewrite /PathIndependence.f' -/h'.
+        eapply continuous_ext. 
+          move => x. 
+          rewrite hf'. 
+         reflexivity. 
+        simpl.
+        apply: continuous_comp_2; auto.
+        auto_continuous_aux.
+        apply/continous_C_AbsRing.
+        apply: continuous_mult;
+        apply/continous_C_AbsRing; auto_continuous_aux.
+  Qed.
 
-  Lemma path_independence_part_line_imaginary:
-    forall u v u' v' a b c d g,
+
+  Lemma path_independence_line:
     (forall r1 r2, 
       (g r1 a = g r2 a) /\ 
       (g r1 b = g r2 b)) ->
-    RInt (fun t0 : R => Im (f (g c t0) * g_t c t0)) a b =
-    RInt (fun t0 : R => Im (f (g d t0) * g_t d t0)) a b .
+    RInt (V:=C_R_CompleteNormedModule) 
+      (fun t0 : R => (f (g c t0) * g_t c t0)) a b =
+    RInt (V:=C_R_CompleteNormedModule)
+      (fun t0 : R => (f (g d t0) * g_t d t0)) a b .
   Proof.
-    apply (@path_independence_part_loop_real 
-             (fun x y => -v x y)
-             (fun x y => u x y)
-             (fun x y => -v' x y)
-             (fun x y => u' x y)
-              a b c d g1 g2).
-    pose h := fun q => Ci * f q.
-    have toRe: forall r t, Im ( f (g r t) * g_t r t) = Ropp (Re (h (g r t) * g_t r t)). {
-      move => r t. 
-      rewrite /h //=.
-      field_simplify_eq; auto.
-    }
-    simpl in *.
-    under RInt_ext => x _ do rewrite toRe.
-    rewrite RInt_opp.
-    symmetry.
-    under RInt_ext => x _ do rewrite toRe.
-    rewrite RInt_opp.
-    f_equal. 
-    symmetry.
-    simpl.
-    simpl.
-    apply.
-    apply: path_independence_part_loop_real  . eauto.
-    - move => r t ? ?; split; [| split]. 
-      + apply: Holo_mult; apply nice; auto.
-      + apply/continous_C_AbsRing.
-        apply: continuous_mult; first by auto_continuous_aux.
-        apply/continous_C_AbsRing.
-        apply nice; auto.
-      + apply nice; auto.
-    - apply ex_RInt_continuous => z /(inside a'bd b'bd) zbd.
-      eapply continuous_ext. move => t.
-        rewrite -[RHS]Ropp_involutive -toRe.
-      reflexivity.
-      apply: continuous_opp.
-      apply continuous_comp; last by apply: continuous_snd.
-      apply: integrand_cts; eauto.
-    - apply ex_RInt_continuous => z /(inside a'bd b'bd) zbd.
-      eapply continuous_ext. move => t.
-        rewrite -[RHS]Ropp_involutive -toRe.
-      reflexivity.
-      apply: continuous_opp.
-      apply continuous_comp; last by apply: continuous_snd.
-      apply: integrand_cts; eauto.
+    move => loop.
+    pose h := fun r => RInt (V:=C_R_CompleteNormedModule)
+       (fun t0 : R => f (g r t0) * g_t r t0) a b.
+    change (h c = h d).
+    apply:eq_is_derive; last by [].
+    move => r tbd.
+    evar_last.
+    apply: path_independence_part_4; first by [].
+    rewrite /g_r.
+    under Derive_ext => r'.
+      move: (loop c r') =>  [_ /pair_equal_spec [<- _]].
+    over.
+    rewrite Derive_const.
+    under Derive_ext => r'.
+      move: (loop c r') =>  [_ /pair_equal_spec [_ <-]].
+    over.
+    rewrite Derive_const.
+    under Derive_ext => r'.
+      move: (loop c r') =>  [/pair_equal_spec [<- _] _].
+    over.
+    rewrite Derive_const.
+    under Derive_ext => r'.
+      move: (loop c r') =>  [/pair_equal_spec [_ <-] _].
+    over.
+    rewrite Derive_const.
+    rewrite /zero /= /prod_zero /zero /= ?Cmult_0_r.
+    field_simplify_eq.
+    auto.
   Qed.
-  End DeriveHomotopy.
-      
-  
-  Theorem path_independence:
-    forall (a b a' b' c d c' d' :R) (f f' : C -> C) (g1 g2: R -> R -> R),
-    let g := fun r t => (g1 r t, g2 r t) in
-    let g_t := fun p q => (Derive (g1 p) q, Derive (g2 p) q) in 
-    let g_r := fun p q => (Derive (g1 ^~ q) p, Derive (g2 ^~ q) p) in
-      c' < d' ->
-      Rmin a b < a' < Rmax a b -> 
-      Rmin a b < b' < Rmax a b -> 
-      Rmin c d < c' < Rmax c d -> 
-      Rmin c d < d' < Rmax c d -> 
-      (forall r t, Rmin c d < r < Rmax c d ->
-                  Rmin a b < t < Rmax a b ->
-                    Holo f f' (g r t) /\
-                    continuous f' (g r t) /\
-                    SmoothPath g1 g2 r t) ->
-      (forall r, Rmin c d < r < Rmax c d -> 
-                  (g r a' = g r b') /\ 
-                  (g_r r a' = g_r r b')) ->
-      ex_RInt (fun t0 : R => f (g c' t0) * g_t c' t0) a' b' /\
-      ex_RInt (fun t0 : R => f (g d' t0) * g_t d' t0) a' b' /\
-      RInt (V:=C_R_CompleteNormedModule) 
-        (fun t0 : R => f (g c' t0) * g_t c' t0) a' b' =
-      RInt (V:=C_R_CompleteNormedModule)
-        (fun t0 : R => f (g d' t0) * g_t d' t0) a' b'.
-    Proof.
-  
-      Local Ltac prod_int := 
-         rewrite -?ex_RInt_prod;
-         apply ex_RInt_continuous => z /(inside a'bd b'bd) zbd;
-         apply: integrand_cts; eauto.
-      move => a b a' b' c d c' d' f f' g1 g2 g g_t g_r.
-      move => c'led' a'bd b'bd c'bd d'bd nice loop.
-      split; [|split].
-      1,2: prod_int.
-      apply: is_RInt_unique.
-      rewrite split_cint /compose.
-      rewrite -(@path_independence_part_4_real a b a' b' c d c' d' f f'); auto.
-      rewrite -(@path_independence_part_4_imaginary a b a' b' c d c' d' f f'); auto.
-      rewrite -split_cint.
-      apply RInt_correct.
-      all: prod_int.
+
+  Lemma path_independence_loop:
+      (forall r,  c <= r <= d -> 
+                  (g r a = g r b) /\ 
+                  (g_r r a = g_r r b)) ->
+    RInt (V:=C_R_CompleteNormedModule) 
+      (fun t0 : R => (f (g c t0) * g_t c t0)) a b =
+    RInt (V:=C_R_CompleteNormedModule)
+      (fun t0 : R => (f (g d t0) * g_t d t0)) a b .
+  Proof.
+    move => loop.
+    pose h := fun r => RInt (V:=C_R_CompleteNormedModule)
+       (fun t0 : R => f (g r t0) * g_t r t0) a b.
+    change (h c = h d).
+    apply:eq_is_derive; last by [].
+    move => r rbd.
+    evar_last.
+    apply: path_independence_part_4; first by [].
+    move: (loop _ rbd) => [-> ->].
+    field_simplify_eq.
+    auto.
   Qed.
+End PathIndependence.
