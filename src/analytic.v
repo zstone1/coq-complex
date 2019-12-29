@@ -183,24 +183,22 @@ Qed.
 Definition contour_inside (g:Contour) D:= 
   forall t, l_end g <= t <= r_end g -> D (gamma g t).
 
+Import FunctionalExtensionality.
 
 Open Scope C.
 Lemma uniform_limits_CInt : forall 
-  (D: C -> Prop)
   (f_: T -> C -> C)
   (flim : C -> C)
   (gam: Contour),
-  open D ->
-  (forall z, D z \/ ~ D z) ->
-  (exists z0, D z0) ->
-  contour_inside gam D ->
+  filterlim (fun u z => f_ u (extension_C0 (gamma gam) (l_end gam) (r_end gam) z)) F
+    (@locally (fct_UniformSpace _ _) 
+    (fun z => flim (extension_C0 (gamma gam) (l_end gam) (r_end gam) z))) ->
   (forall u, cts_on_contour (f_ u) gam) ->
-  filterlim f_ F (compactly D flim) -> 
   filterlim (fun u => CInt gam (f_ u)) F (locally (CInt gam flim)).
 Proof.
-  move => D f_ flim gam openD decD nonempty gam_in_D cts H.
+  move => f_ flim gam  unif cts.
 
-  wlog: gam gam_in_D cts / 
+  wlog: gam unif cts / 
     exists M : posreal, forall z : R_UniformSpace, norm (gamma' gam z) < M. {
       have:= bounded_derive_contour gam.
       move => [gam2 [eqv bdd]] H'.
@@ -210,10 +208,32 @@ Proof.
         rewrite (@CInt_gamma_ext gam gam2); auto.
       reflexivity.
       move: eqv => [lends [rends[ext1 ext2]]].
-      apply H'.
-      - move => t tbd.
-        rewrite -ext1; first apply gam_in_D.
-        all: rewrite lends rends; lra.
+      pose gamma_bar2 :=extension_C0 (gamma gam2) (l_end gam2) (r_end gam2).
+      pose gamma_bar :=extension_C0 (gamma gam) (l_end gam) (r_end gam).
+      have H: (forall t, gamma_bar2 t= gamma_bar t). {
+        move => t.
+        rewrite /gamma_bar /gamma_bar2 /extension_C0.
+        rewrite -rends -lends.
+        destruct_match.
+        clear l.
+        destruct_match.
+        all: symmetry; apply ext1; auto; split; try reflexivity.
+        all: left;apply endpoint_interval.
+      }
+      apply (@H' gam2).
+      - apply: (@filterlim_ext _ _ _ _ _ (fun u z => (f_ u (gamma_bar z)))).
+          move => x.
+          apply functional_extensionality => t.
+          f_equal.
+          symmetry.
+          apply H.
+        set h := (x in locally x).
+        have ->: (h = (fun z => flim (gamma_bar z))).
+        2: auto.
+        apply functional_extensionality => t.
+        rewrite /h.
+        f_equal.
+        apply H.
       - move => u t tbd.
         rewrite -ext1; first apply cts.
         all: rewrite lends rends; lra.
@@ -239,7 +259,7 @@ Proof.
     2,3: simpl; left; apply tbd.
     reflexivity.
   }
-  pose gamma_bar := extension_C0 (gamma gam) (l_end gam) (r_end gam) .
+  pose gamma_bar :=extension_C0 (gamma gam) (l_end gam) (r_end gam).
   have := @filterlim_RInt T
           (C_R_CompleteNormedModule) 
           (fun u t => f_ u (
@@ -265,7 +285,8 @@ Proof.
     apply: continuous_mult; last by
       apply/continous_C_NormedModule; apply: cts_derive; auto.
     apply continuous_comp.
-    + apply: extension_C0_continuous; simpl; first by left.
+    + rewrite /gamma_bar.
+      apply: extension_C0_continuous; simpl; first by left.
       move => *. apply: is_derive_continuous.
       apply: contour_derive; auto.
     + rewrite /gamma_bar extension_C0_ext; simpl.
@@ -274,6 +295,14 @@ Proof.
       apply cts.
       auto.
   - apply filterlim_mult_bounded; first by apply: bounded.
+    auto.
+
+  - move => z [+ /is_RInt_unique ->].
+    apply.
+Qed.
+End FilterlimFunc.
+
+    rewrite /filterlim.
     apply: (@filterlim_compose_fam).
     1: apply compactly_non_trivial; eauto.
     1: auto.
@@ -326,11 +355,6 @@ Proof.
         rewrite r_eq //=.
       * move: cover => /(_ (l_end gam) (ltac:(lra))).
         rewrite l_eq //=.
-  - move => z [+ /is_RInt_unique ->].
-    apply.
-Qed.
-End FilterlimFunc.
-
 Open Scope C.
 Lemma C_sum_pow_n: forall (z : C) (n : nat),
   z <> 1 ->

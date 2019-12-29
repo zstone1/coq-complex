@@ -78,6 +78,42 @@ Proof.
   auto.
 Qed.
 
+Lemma uniformly_on_ext: forall f g (E: U -> Prop), 
+  (forall z, E z -> f z = g z) -> 
+    filter_le (uniformly_on E f) (uniformly_on E g).
+Proof.
+  move => f g E ext P [del H]. 
+  exists del => h hball.
+  apply H => u Eu.
+  rewrite -ext; auto.
+Qed.
+
+Lemma uniformly_on_filterlim_ext {T:Type}: forall 
+  (f g: T -> U -> V) (E: U -> Prop) l F {FF: Filter F}, 
+  (forall u z, E z -> f u z = g u z) -> 
+    filterlim f F (uniformly_on E l) -> filterlim g F (uniformly_on E l).
+Proof.
+  move => f g E l F FF ext + P [del H]. 
+
+  move => /(_ (fun h => (forall h', (forall u, E u -> h u = h' u) -> P h'))). 
+  set p := (uniformly_on _ _ _).
+  have: p. {
+    rewrite /p.
+    exists del.
+    move => h I.
+    move => h' h'ext.
+    apply H.
+    move => x Ex.
+    rewrite -h'ext; auto.
+  }
+  move => I /(_ I).
+  rewrite /filtermap => {}I.
+  apply: filter_imp I.
+  move => x.
+  apply.
+  auto.
+Qed.
+    
 Lemma global_le_local : forall (E: U -> Prop) f ,
   filter_le (locally f) (uniformly_on E f).
 Proof.
