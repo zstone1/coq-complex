@@ -772,14 +772,8 @@ Proof.
 Qed.
 
 Open Scope C.
-Fixpoint Cpow (z: C) (n: nat) := 
-  match n with 
-  | 0 => RtoC 1
-  | S n => z * Cpow z (n)
-  end .
-Infix "^" := Cpow : C_scope.
 
-Lemma Cpow_cmod : forall z n, Cmod (Cpow z n)%C = (pow (Cmod z) n).
+Lemma pow_n_abs_C : forall (z:C) n, Cmod (pow_n z n)%C = (pow_n (Cmod z) n).
 Proof.
   move => z.
   elim.
@@ -788,7 +782,8 @@ Proof.
     rewrite Cmod_mult IH //=.
 Qed.
 
-Lemma Cpow_cts : forall z n, continuous (fun z => z ^n) z.
+
+Lemma pow_n_cts : forall z n, continuous (fun z:C => pow_n z n) z.
 Proof.
   move => z.
   elim.
@@ -805,7 +800,7 @@ Lemma cauchy_integral_aux: forall f (r eps: posreal) a,
   exists (del: posreal), 
   forall n: nat, 
   del < r /\
-  (del ^ n) * norm (CInt (circC a del) (fun z => (f(z) - f(a))/ ((z-a)^(S n))))  
+  (del ^ n) * norm (CInt (circC a del) (fun z => (f(z) - f(a))/ (pow_n (z-a) (S n))))  
     <= eps.
 Proof.
   move => f r eps a holo.
@@ -866,21 +861,22 @@ Proof.
           apply Rmin_pos; try lra.
       - apply /continous_C_AbsRing.
         apply: continuous_comp; first  
-          (apply: (@continuous_comp _ _ _ _ (fun z => Cpow z m));
-          [repeat auto_continuous_aux| apply Cpow_cts ]).
+          (apply: (@continuous_comp _ _ _ _ (fun z:C => pow_n z m));
+          [repeat auto_continuous_aux| apply pow_n_cts ]).
         apply: continuous_Cinv.
         simpl => H.
         set q := (_ + c_circle _ _ - _) in H.
-        have: (Cmod (q^(S n)) = 0) by
+        have: (Cmod (pow_n q (S n)) = 0) by
           rewrite -Cmod_0; f_equal.
         move {H}.
         simplify_as_R2 e q.
-        rewrite Cpow_cmod c_circle_norm.
+        rewrite pow_n_abs_C c_circle_norm.
         move => H. 
         contradict H.
         apply Rlt_0_neq_0.
         rewrite Rabs_pos_eq.
         2: left; apply: Rmin_pos; lra.
+        rewrite pow_n_pow.
         apply: pow_lt.
         apply: cond_pos del2.
   }
@@ -891,7 +887,7 @@ Proof.
     rewrite Cmod_div;
     set q := a + _ - a;
     simplify_as_R2 e q.
-    - rewrite Cpow_cmod  ?c_circle_norm.
+    - rewrite pow_n_abs_C  ?c_circle_norm.
       rewrite Rabs_pos_eq; last by left.
       apply Rmult_le_compat_r; first by (
         left;
@@ -908,7 +904,7 @@ Proof.
       eapply Rle_lt_trans; first apply Rmin_l.
       lra.
     - apply/ Cmod_gt_0.
-      rewrite Cpow_cmod c_circle_norm.
+      rewrite pow_n_abs_C c_circle_norm.
       rewrite Rabs_pos_eq; last by left.
       apply pow_lt.
       apply Rmin_pos; lra.
@@ -1218,7 +1214,7 @@ Proof.
   right.
   f_equal.
   symmetry.
-  under CInt_ext_global => t do rewrite Cmult_1_r.  
+  under CInt_ext_global => t do rewrite mult_one_r.  
   pose D' := fun z => z<> a /\ D z.
   apply (@circ_independence _ _ _ _ D').
   1: left; apply cond_pos.
