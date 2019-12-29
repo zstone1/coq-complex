@@ -300,16 +300,34 @@ Proof.
   - move => z [+ /is_RInt_unique ->].
     apply.
 Qed.
-End FilterlimFunc.
 
-    rewrite /filterlim.
-    apply: (@filterlim_compose_fam).
+Lemma compact_limit_contour: forall 
+  (f_: T -> C -> C)
+  (flim : C -> C)
+  (gam: Contour)
+  (D: C -> Prop),
+  open D ->
+  (forall u, D u \/ ~ D u) ->
+  (exists u0, D u0) ->
+  contour_inside gam D ->
+  filterlim f_ F (compactly D flim) ->
+  filterlim (fun u z => f_ u (extension_C0 (gamma gam) (l_end gam) (r_end gam) z)) F
+    (@locally (fct_UniformSpace _ _) 
+    (fun z => flim (extension_C0 (gamma gam) (l_end gam) (r_end gam) z))). 
+Proof.
+  move => f_ flim gam D openD decD nonempty gam_in_D compact_lim.
+
+  pose gamma_bar :=extension_C0 (gamma gam) (l_end gam) (r_end gam).
+  rewrite /filterlim.
+  apply: (@filterlim_compose_fam).
     1: apply compactly_non_trivial; eauto.
     1: auto.
     have := @path_in_circles gamma_bar D (l_end gam) (r_end gam)
              openD (ltac:(auto)) (ltac:(auto)).
     rewrite path_independence.not_not_impl.
+    have?:= endpoint_interval gam.
     case.
+    + auto.
     + move => *. 
       rewrite /gamma_bar /extension_C0.
       destruct_match; last apply gam_in_D.
@@ -355,6 +373,27 @@ End FilterlimFunc.
         rewrite r_eq //=.
       * move: cover => /(_ (l_end gam) (ltac:(lra))).
         rewrite l_eq //=.
+Qed.
+
+Lemma compact_limit_CInt: forall 
+  (f_: T -> C -> C)
+  (flim : C -> C)
+  (gam: Contour)
+  (D: C -> Prop),
+  open D ->
+  (forall u, D u \/ ~ D u) ->
+  (exists u0, D u0) ->
+  contour_inside gam D ->
+  filterlim f_ F (compactly D flim) ->
+  (forall u, cts_on_contour (f_ u) gam) ->
+  filterlim (fun u => CInt gam (f_ u)) F (locally (CInt gam flim)).
+Proof.
+  move => *.
+  apply uniform_limits_CInt; auto.
+  apply: compact_limit_contour; eauto.
+Qed.
+End FilterlimFunc.
+
 Open Scope C.
 Lemma C_sum_pow_n: forall (z : C) (n : nat),
   z <> 1 ->
