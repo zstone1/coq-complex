@@ -35,6 +35,25 @@ Proof.
   apply: ball_center.
 Qed.
 
+Lemma filterlim_uniformly_on {T:Type}:
+  forall {F} {FF : Filter F} (E: U -> Prop) (f: T -> U -> V) g,
+  filterlim f F (uniformly_on E g) <->
+  (forall eps : posreal, F (fun t => forall u, E u -> ball (g u) eps (f t u))).
+Proof.
+intros F FF E f g.
+split.
+- move=> + eps.
+  move => /(_ (fun h => forall u, E u ->  ball (g u) eps (h u))).
+  apply.
+  now exists eps.
+- intros Cf P [eps He].
+  apply: filter_imp (Cf eps).
+  intros t.
+  apply He.
+Qed.
+
+
+
 
 Global Instance uniformly_on_filter: forall E f,
   ProperFilter (uniformly_on E f).
@@ -122,6 +141,18 @@ Proof.
   rewrite /ball /= /fct_ball in gbd.
   apply: H => *.
   apply gbd.
+Qed.
+
+Lemma global_true : forall f ,
+  filter_le (uniformly_on (fun => True) f) (locally f).
+Proof.
+  move => f P [del H].
+  exists del => g gbd.
+  apply: H => *.
+  rewrite /ball /= /fct_ball.
+  move => *.
+  apply gbd.
+  auto.
 Qed.
 
 Lemma uniformly_on_union : forall (E1 E2: U -> Prop) f P Q,
@@ -396,16 +427,95 @@ Qed.
 
 End UniformOn.
 
+Lemma uniformly_bounded_mult {T:Type} {U:UniformSpace}: 
+  forall F {FF: Filter F} (E: U -> Prop) (f: T -> U -> C) (g: U -> C) flim,
+  (exists (M:posreal), forall z, E z -> norm(g z) < M  ) ->
+  filterlim (fun u z=> f u z ) F (uniformly_on E flim) ->
+  filterlim (fun u z=> f u z * g z ) F 
+    (uniformly_on E (fun z => flim z * g z)).
+Proof.
+  move => F FF E f g flim [M bd] /filterlim_uniformly_on H.
+  have?:= cond_pos M.
+  apply/ filterlim_uniformly_on => eps.
+  have?:= cond_pos eps.
+  have delpos : 0 < eps/(2*M) by apply Rdiv_lt_0_compat;  lra.
+  pose del := mkposreal _ delpos.
+  move:H => /(_ (del )) H.
+  apply: filter_imp H.
+  move => t.
+  unfold_alg.
+  rewrite /fct_ball /= .
+  move => H.
+  move => z.
+  move: H => /(_ z).
+  rewrite /ball /= /prod_ball => + Ez.
+  move => /(_ Ez) => H.
+
+  case: H => [+ +].
+  unfold_alg.
+  rewrite -?/(Rminus _ _).
+  Open Scope R.
+  have bd1 : Rabs((g z).1) < M. {
+    move: bd=> /(_ z).
+    unfold_alg => bd.
+    apply: Rle_lt_trans. 
+    2: apply bd.
+    case e: (g z).
+    apply Cmod_Rabs_real.
+    auto.
+  }
+  have bd2 : Rabs((g z).2) < M. {
+    move: bd=> /(_ z).
+    unfold_alg => bd.
+    apply: Rle_lt_trans. 
+    2: apply bd.
+    case e: (g z).
+    apply Cmod_Rabs_imaginary.
+    auto.
+  }
+  move => H1 H2.
+  replace (pos eps) with ((eps/(2*M)) *M + (eps/(2*M)) * M )%R; 
+    last field_simplify_eq; auto.
+  2: apply Rlt_0_neq_0; lra.
+  split.
+  - set p := ( x in Rabs x).
+    replace p with (((f t z).1 - (flim z).1) * (g z).1 - 
+                    ((f t z).2 - (flim z).2) * (g z).2).
+    2: rewrite /p; field_simplify_eq;
+       rewrite [(flim z).2*_]Rmult_comm;
+       apply Rplus_eq_compat_r;
+       rewrite [(flim z).1*_]Rmult_comm;
+       auto.
+    apply: Rle_lt_trans; first by apply Rabs_triang.
+    rewrite Rabs_Ropp ?Rabs_mult;
+    apply Rplus_lt_compat;
+    apply Rmult_le_0_lt_compat; auto;
+      try apply Rabs_pos.
+  - set p := ( x in Rabs x).
+    replace p with (((f t z).1 - (flim z).1) * (g z).2 + 
+                    ((f t z).2 - (flim z).2) * (g z).1).
+    2: rewrite /p; field_simplify_eq;
+       rewrite [(flim z).2*_]Rmult_comm;
+       apply Rplus_eq_compat_r;
+       rewrite [(flim z).1*_]Rmult_comm;
+       auto.
+    apply: Rle_lt_trans; first by apply Rabs_triang.
+    rewrite ?Rabs_mult;
+    apply Rplus_lt_compat;
+    apply Rmult_le_0_lt_compat; auto;
+      try apply Rabs_pos.
+Qed.
+
 Definition square_in (D: C -> Prop) (P:C -> Prop) : Prop := 
   (forall z, P z -> D z) /\
-  (exists a b c d, 
-    (forall z, P z <-> a <= z.1 <= b /\ c <= z.2 <= d)).
+  (exists a (del: posreal), 
+    (forall z, P z <-> a.1-del <= z.1 <= a.1+del /\ a.2-del<= z.2 <= a.2+del)).
 
 Definition compactly D (f: C -> C) := uniformly_on_family (square_in D) f.
 
 Lemma compactly_non_trivial: forall D, open D -> 
   (exists z0, D z0) ->
-  exists P, square_in D P.
+  exists E, square_in D E.
 Proof.
   move => D openD [z0 Dz0].
   have := openD z0 Dz0.
@@ -415,11 +525,16 @@ Proof.
                      z0.2 - del/2 <= z.2 <= z0.2 + del/2.
   exists P.
   split.
-  2: do 4 eexists; rewrite /P => z; apply reflexivity.
-  move => z [/Rabs_le_between' P1 /Rabs_le_between' P2]. 
-  apply H.
-  split; (apply (@Rle_lt_trans _ (del/2)); last by lra);
-  [apply P1 | apply P2].
+  - move => z [/Rabs_le_between' ? /Rabs_le_between' ?]. 
+    apply H.
+    unfold_alg.
+    rewrite -?/(Rminus _ _).
+    split; apply: Rle_lt_trans; eauto; lra.
+  - exists z0; exists (pos_div_2 del).
+    move => z.
+    rewrite /P.
+    simpl.
+    tauto.
 Qed.
      
 Instance compactly_filter: forall (D: C -> Prop) f,
@@ -519,7 +634,7 @@ Proof.
         rewrite -[x in x < _]Rmult_1_r.
         apply Rmult_lt_compat_l; try lra.
         apply cond_pos.
-    - do 4 eexists. 
+    - do 2 eexists. 
       move => z.
       rewrite /del_sqr.
       reflexivity.
@@ -540,7 +655,7 @@ Proof.
     split; first by tauto.
     apply /andP. split; apply/RleP; simpl; apply t0bd.
   - rewrite /del_sqr -?Rabs_le_between'.
-    have: (Rmax (Rabs (g x - g r).1) (Rabs (g x - g r).2) <= ` (eps r) /2).
+    have: (Rmax (Rabs (g x - g r)%C.1) (Rabs (g x - g r)%C.2) <= ` (eps r) /2).
     2: { 
       move => Hmax.
       split.
@@ -555,3 +670,5 @@ Proof.
   apply H.
   apply t0close.
 Qed.
+
+
