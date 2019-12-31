@@ -778,9 +778,29 @@ Proof.
       rewrite /mult /=.
   reflexivity.
   1: {
-
-  move => n.
-  admit.
+    move => n.
+    apply cts_on_contour_mult.
+    2: rewrite /Cdiv.
+    2: apply cts_on_contour_mult.
+    2: apply: holo_ball_contour; eauto.
+    2: apply cts_puncture_contour => w neq.
+    2: apply: continuous_comp.
+    3: apply continuous_Cinv.
+    3: apply/Cminus_0_eq; auto.
+    2: rewrite /Cminus.
+    2: apply: continuous_plus; auto_continuous_aux.
+    apply cts_puncture_contour => w neq.
+    apply (@continuous_comp _ _ _ (fun w:C => (z-a)/(w - a))%C 
+            (fun w:C => pow_n w n)).
+    2: apply: pow_n_cts.
+    rewrite /Cdiv.
+    apply: continuous_comp_2.
+    2: apply: continuous_comp.
+    4: apply continuous_Cmult.
+    3: apply continuous_Cinv; apply/Cminus_0_eq; auto.
+    2: rewrite /Cminus.
+    2: apply: continuous_plus; auto_continuous_aux.
+    auto_continuous_aux.
   }
   rewrite (@CInt_ext _ (fun w => 1/(1-((z-a)/(w-a))) * (f w /(w-a)))).
   2: {
@@ -797,11 +817,34 @@ Proof.
       apply contour_puncture.
       auto.
   }
-  apply uniform_limits_CInt;
-  simpl.
-  2: admit.
   pose h := extension_C0 (gamma (circC a r)) 0 (2*PI)%R.
-  rewrite -/h.
+  apply uniform_limits_CInt.
+  all: rewrite -/h.
+  2:{
+    move => n.
+    apply cts_on_contour_mult.
+    2: rewrite /Cdiv; apply cts_on_contour_mult.
+    2: apply: holo_ball_contour; eauto.
+    2: apply cts_puncture_contour=> w neq.
+    2: apply continuous_comp.
+    3: apply continuous_Cinv; apply/Cminus_0_eq; auto.
+    2: rewrite /Cminus.
+    2: apply: continuous_plus; auto_continuous_aux.
+    apply cts_contour_sum.
+    move => m.
+    apply: cts_puncture_contour => w neq.
+    apply: (@continuous_comp _ _ _ (fun w:C => (z-a)/(w - a))%C 
+            (fun w:C => pow_n w m)).
+    2: apply: pow_n_cts.
+    rewrite /Cdiv.
+    apply: continuous_comp_2.
+    3: apply continuous_Cmult.
+    1: auto_continuous_aux.
+    1: apply: continuous_comp.
+    2: apply continuous_Cinv; apply/Cminus_0_eq; auto.
+    1: rewrite /Cminus.
+    1: apply: continuous_plus; auto_continuous_aux.
+  }
   clear p.
   apply: filterlim_filter_le_2.
   1: apply global_true.
@@ -899,7 +942,6 @@ Proof.
          rewrite c_circle_norm_2 Cmod_0 Rabs_pos_eq;[|left]; apply cond_pos.
       rewrite c_circle_norm_2 Rabs_pos_eq;[|left]. 
       2:apply cond_pos.
-      SearchAbout (_/_<1).
       rewrite -Rdiv_lt_1.
       2: apply cond_pos.
       apply aball.
