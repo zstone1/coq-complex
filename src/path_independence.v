@@ -19,17 +19,7 @@ Require Import domains ext_rewrite real_helpers.
 
 Open Scope R.
 
-Definition CHolo f f' z := 
-  Holo f f' z /\ continuous f' z.
 
-
-Lemma is_derive_continuous: forall 
-  {K: AbsRing} {V : NormedModule K} f f' x,
-  is_derive (K:=K) (V:=V) f x f' -> continuous f x.
-Proof.
- move => *.
- apply ex_derive_continuous; eexists;  eauto.
-Qed.
 Lemma path_independence_part_1: forall
     (u v: R -> R -> R) udx udy vdx vdy
     (g1 g2: R -> R -> R) g2_r g2_t g1_r g1_t r t,

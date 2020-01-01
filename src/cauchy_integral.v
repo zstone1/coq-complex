@@ -49,57 +49,6 @@ Qed.
 
 Open Scope C.
 
-Definition CHolo_on D f := exists f',
-  forall z, D z -> CHolo f f' z.
-
-Record Contour := mkContour {
-  gamma: R -> C; 
-  gamma': R -> C;
-  l_end: R;
-  r_end: R;
-  endpoint_interval: l_end < r_end;
-  contour_derive: forall t, l_end <= t <= r_end -> is_derive gamma t (gamma' t);
-  cts_derive: forall t, l_end <= t <= r_end -> continuous gamma' t;
-}.
-Open Scope C. 
-Definition is_CInt (g: Contour) (f: C -> C) (z:C) :=
-  is_RInt (fun t => f (gamma g t) * (gamma' g t)) (l_end g) (r_end g) z.
-Definition ex_CInt (g: Contour) (f: C -> C) :=
-  exists z, is_CInt g f z. 
-Definition CInt (g: Contour ) f := 
-  RInt (V:=C_R_CompleteNormedModule) 
-    (fun t => f (gamma g t) * (gamma' g t)) (l_end g) (r_end g) .
-
-Program Definition circC (z:C) (r: R) := {|
-  gamma := fun t => z + c_circle r t;
-  gamma' := c_circle' r;
-  l_end := 0;
-  r_end := 2*PI;
-|}.
-Obligation 1. 
-Proof. have:= PI_RGT_0; lra. Qed.
-Obligation 2. 
-Proof. 
-  rewrite /c_circle /c_circle'.
-  under ext_is_derive_glo => y.
-    set p := _ + _.
-    simplify_as_R2 e p.
-  over.
-  set p := _ * _.
-  simplify_as_R2  e p.
-  apply (is_derive_pair 
-    (f := fun q => z.1 + r * cos q) 
-    (g := fun q => z.2 + r * sin q)
-    (f' := fun q => -r * sin q)
-    (g' := fun q => r * cos q)
-  )%R; auto_derive_all. 
-Qed.
-Obligation 3.
-Proof.
-rewrite /c_circle'.
-auto_continuous_aux; simpl; apply: ex_derive_continuous;
-auto_derive; auto.
-Qed.
 
 Lemma holo_path_local : forall f f' g1 g2 D r t, 
   open D ->
@@ -263,48 +212,6 @@ Proof.
 Qed.
        
 
-  
-Lemma Rlt_0_neq_0: forall a,
-  0 < a -> a <> 0.
-Proof.
-  move => *; lra.
-Qed.
-Open Scope R.
-Lemma continuous_Cinv: forall (z:C), 
-  z <> 0 -> continuous (Cinv) z.
-Proof.
-  move => z z_neq_0.
-  have ?: (z.1 * z.1 + z.2 * z.2 <> 0). {
-    contradict z_neq_0.
-    field_simplify.
-    rewrite [LHS]surjective_pairing.
-    f_equal; nra.
-  }
-
-  apply: continuous_pair; simpl;
-  rewrite/continuous; 
-  rewrite [x in _ _ (_ x) _]surjective_pairing;
-  set p := (x in _ x _ _);
-  pose h := fun a b => p (a,b);
-  rewrite -(@continuity_2d_pt_filterlim h);
-  rewrite /h /p;
-  eapply continuity_2d_pt_ext. 
-  1,3: move => x y;
-      rewrite ?Rmult_0_l ?Rminus_0_l ?Rmult_1_l 
-              ?Rmult_1_r ?Rminus_0_r ?Rplus_0_r //=.
-  1: apply: continuity_2d_pt_mult; first by 
-      apply continuity_2d_pt_id1.
-  2: apply: continuity_2d_pt_mult; first by 
-      apply: continuity_2d_pt_opp;
-      apply continuity_2d_pt_id2.
-  all:
-    apply: continuity_2d_pt_inv; last (by auto);
-    apply continuity_2d_pt_plus;
-    apply continuity_2d_pt_mult;
-    (try apply: continuity_2d_pt_id2);
-    apply: continuity_2d_pt_id1.
-Qed.
-  
 Open Scope C.
 
 Lemma div_z_continuous_contour: forall a (r: posreal) , 
@@ -334,77 +241,6 @@ Qed.
 
 
 Open Scope R.
-Lemma holo_inv : forall (z: C), 
-  (z <> 0)%C -> (Holo Cinv (fun q => -1/(q * q)) z)%C.
-Proof.
-  move => z neq_0.
-  have zb : 0 < Rmax (Rabs z.1) (Rabs z.2). {
-    destruct z; simpl.
-    destruct (Req_dec 0 r);
-    destruct (Req_dec 0 r0).
-    - contradict neq_0; subst; auto.
-    - subst. rewrite Rmax_right.
-      + apply Rabs_pos_lt; auto. 
-      + rewrite Rabs_R0; apply Rabs_pos.
-    - subst. rewrite Rmax_left.
-      + apply Rabs_pos_lt; auto. 
-      + rewrite Rabs_R0; apply Rabs_pos.
-    - apply (@Rmax_case (Rabs r) (Rabs r0) (fun q => 0 < q));
-        apply Rabs_pos_lt; auto.
-  }
-  pose del := (mkposreal _ zb).
-  have ball_neq_0: forall y, ball z del y -> y.1 * y.1 + y.2 * y.2 <> 0. {
-    move => y ybd H.
-    move: H.
-    copy => /Rplus_sqr_eq_0_l y1. 
-    rewrite Rplus_comm.
-    move => /Rplus_sqr_eq_0_l y2.
-    have: y = (0,0); first by rewrite [LHS]surjective_pairing y1 y2.
-    move => ?; subst.
-    move: ybd.
-    unfold_alg.
-    destruct (Rlt_dec (Rabs z.1) (Rabs z.2)).
-    - rewrite ?Rmax_right; last by left; auto.
-      rewrite ?Rplus_0_l ?Rabs_Ropp; lra.
-    - rewrite ?Rmax_left; last by lra .
-      rewrite ?Rplus_0_l ?Rabs_Ropp; lra.
-  }
-  have ball_pows_0: forall y, ball z del y -> 
-       ( 0 < y.1 ^ 4 + 2 * y.1 ^ 2 * y.2 ^ 2 + y.2 ^ 4)%R . {
-    move => y zbd.
-    set p := (x in _ < x).
-    replace p with ((y.1 * y.1 + y.2 * y.2)^2); last by
-      rewrite /p; lra. 
-    apply pow2_gt_0.
-    apply ball_neq_0.
-    auto.
-  }
-  apply: CauchyRieman_Hard; simpl. 
-  1:{ rewrite /LocallyPartials. repeat split;
-    ( exists del => y yb;
-      simpl in *;
-      auto_derive; 
-      rewrite ?Rmult_0_l ?Rminus_0_l ?Rmult_1_l 
-              ?Rmult_1_r ?Rminus_0_r ?Rplus_0_r //=;
-      repeat split; try by apply: ball_neq_0);
-      field_simplify_eq; auto; repeat split;
-      try by apply: ball_neq_0.
-    + apply: Rlt_0_neq_0. field_simplify. apply ball_pows_0; auto.
-    + apply: Rlt_0_neq_0. field_simplify. apply ball_pows_0; auto.
-  }
-  1,2: simpl; field_simplify_eq; auto;
-    split;
-    [ (apply: Rlt_0_neq_0; field_simplify);
-      apply ball_pows_0; apply ball_center
-    |  apply: ball_neq_0; apply ball_center
-    ].
-  all: repeat auto_continuous_aux;
-    apply continuous_comp; repeat auto_continuous_aux;
-    apply: ex_derive_continuous; auto_derive;
-    try (now apply ball_neq_0; apply ball_center);
-    try (now apply: Rlt_0_neq_0; field_simplify; apply ball_pows_0;
-             apply ball_center).
-Qed.
 
 Open Scope C.
 

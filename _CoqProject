@@ -1,8 +1,7 @@
 -R . Top
 
-src/real_helpers.v
-src/ext_rewrite.v
-src/domains.v
+src/helpers.v
+src/complex_core.v
 src/cauchy_riemann.v
 src/homotopy.v
 src/path_independence.v

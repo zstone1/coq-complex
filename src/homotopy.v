@@ -17,10 +17,6 @@ Open Scope program_scope.
 Open Scope general_if_scope.
 Require Import domains ext_rewrite real_helpers.
 
-Open Scope C.
-Definition c_circle (r: R) (t:R):C := r * (cos t, sin t).
-Definition c_circle' (r: R) (t:R):C := r * (-sin t, cos t)%R.
-
 Open Scope R.
 
 Lemma differentiable_pt_unique (f : R -> R -> R) (x y : R) :
