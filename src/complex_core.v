@@ -277,6 +277,23 @@ Proof.
   all: lra. 
 Qed.
 
+Open Scope C.
+Lemma Holo_mult: forall f g z k,
+  Holo f g z -> Holo (fun q => k * (f q)) (fun q => k * (g q)) z.
+Proof.
+  move => f g z k.
+  move => /(filterdiff_scal_r_fct k ). 
+  have H := Cmult_comm.
+  move /(_ H).
+  under ext_filterdiff_d => t.
+    rewrite scal_assoc.
+    have ->: (mult k t = mult t k) by unfold_alg.
+    rewrite -scal_assoc.
+  over.
+  rewrite -/(is_derive _ _ _) /Holo //=.
+Qed.
+
+
 End Holomorphism.
 
 Section CauchyRiemann.
@@ -825,23 +842,6 @@ Proof.
     apply fholo; auto. 
   - auto_cts.
     apply fholo; auto. 
-Qed.
-
-Lemma diff_topology_change: forall f f' z, 
- 
- @is_derive C_AbsRing (C_NormedModule) f z f' <-> 
- @is_derive C_AbsRing (AbsRing_NormedModule C_AbsRing) f z f'.
-Proof.
-  move => f f' z.
-  rewrite /is_derive /filterdiff.
-  split;
-  move => [_ Hf]; (split; first by apply is_linear_scal_l);
-  move => + /is_filter_lim_locally_unique <- eps => _;
-  move: Hf => /(_ z);
-  [ move => /(_ (@is_filter_lim_locally (AbsRing_UniformSpace C_AbsRing) z ))
-  | move => /(_ (@is_filter_lim_locally (AbsRing_UniformSpace C_AbsRing) z ))
-  ];
-  move => /(_ eps); auto.
 Qed.
 
 Hint Extern 5 (continuous _ _) => (apply/cts_topology_2) : teardown_leaf. 

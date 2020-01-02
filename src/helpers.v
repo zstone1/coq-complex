@@ -370,6 +370,12 @@ Ltac unfold_alg := rewrite
   /norm /= /scal/= /mult /= /abs /= /minus /= /plus 
   /= /prod_plus /prod_opp /opp /= -/(Cminus _ _) -?/(Rminus _ _).
 
+Lemma is_filter_lim_locally: forall {T:UniformSpace} (z:T),
+  is_filter_lim (locally z) z.
+Proof.
+  move => T z. rewrite //=.
+Qed.
+
 
 (** There are several ways to view the standard topology on C. 
     They are all equivalent.*)
@@ -412,8 +418,35 @@ Proof.
   ]); eauto.
 Qed.
 
+Lemma diff_topology_change: forall f f' z, 
+ 
+ @is_derive C_AbsRing (C_NormedModule) f z f' <-> 
+ @is_derive C_AbsRing (AbsRing_NormedModule C_AbsRing) f z f'.
+Proof.
+  move => f f' z.
+  rewrite /is_derive /filterdiff.
+  split;
+  move => [_ Hf]; (split; first by apply is_linear_scal_l);
+  move => + /is_filter_lim_locally_unique <- eps => _;
+  move: Hf => /(_ z);
+  [ move => /(_ (@is_filter_lim_locally (AbsRing_UniformSpace C_AbsRing) z ))
+  | move => /(_ (@is_filter_lim_locally (AbsRing_UniformSpace C_AbsRing) z ))
+  ];
+  move => /(_ eps); auto.
+Qed.
+
+
 End CTopologies.
 
+Ltac replace_Derive :=
+  let df' := fresh in 
+  let df := fresh in 
+  evar (df' : R);
+  set df := Derive _ _;
+  have {df df'}->: (df = ?df') by
+    rewrite /df;
+    apply: is_derive_unique;
+    auto_derive; auto.
 
 Ltac auto_derive_all_aux := 
   first [progress eauto with derive_compute | auto_derive]; 
@@ -445,6 +478,64 @@ Ltac auto_derive_all :=
     
   end.
 
+Create HintDb teardown_leaf.
+Hint Extern 1 (continuous fst _) => (apply: continuous_fst) : teardown_leaf.
+Hint Extern 1 (continuous snd _) => (apply: continuous_snd) : teardown_leaf.
+Hint Extern 1 (continuous id _) => (apply: continuous_id) : teardown_leaf.
+Hint Extern 1 (continuous (fun =>_) _) => (apply: continuous_const) : teardown_leaf.
+
+Hint Extern 5 (continuous _ _) => (apply/cts_topology_2) : teardown_leaf. 
+Hint Extern 5 (continuous _ _) => (apply/cts_topology_1) : teardown_leaf. 
+
+Tactic Notation "teardown" 
+  tactic(topology_shift) 
+  tactic(t_plus) 
+  tactic(t_scal) 
+  tactic(t_mult) 
+  tactic(t_minus) 
+  tactic(t_opp) 
+  tactic(t_div) 
+  tactic(t_pair) :=
+  try auto with auto_continuous;
+  match goal with 
+  
+  | |- context[fun _ => (_ , _)] => first [t_pair | topology_shift; t_pair]
+  
+  | |- context[fun _ => plus _ _] => t_plus
+  | |- context[fun _ => Rplus _ _] => t_plus
+  | |- context[fun _ => Cplus _ _] => t_plus
+  | |- context[plus _] => t_plus
+  | |- context[Rplus _] => t_plus
+  | |- context[Cplus _] => t_plus
+  
+  | |- context[fun _ => Cmult _ _] => first [t_mult | topology_shift; t_mult]
+  
+  | |- context[fun _ => scal _ _] => t_scal
+  | |- context[fun _ => mult _ _] => t_mult
+  | |- context[fun _ => Rmult _ _] => t_mult
+  | |- context[fun _ => Cmult _ _] => t_mult
+  | |- context[scal _] => t_scal
+  | |- context[mult _] => t_mult
+  | |- context[Rmult _] => t_mult
+  | |- context[Cmult _] => t_mult
+   
+  | |- context[fun _ => minus _ _] => t_minus
+  | |- context[fun _ => Rminus _ _] => t_minus
+  | |- context[fun _ => Cminus _ _] => t_minus
+  | |- context[minus _] => t_minus
+  | |- context[Rminus _] => t_minus
+  | |- context[Cminus _] => t_minus
+
+  | |- context[fun _ => opp _] => t_opp
+  | |- context[fun _ => Ropp _] => t_opp
+  | |- context[fun _ => Copp _] => t_opp
+  | |- context[opp _] => t_opp
+  | |- context[Ropp _] => t_opp
+  | |- context[Copp _] => t_opp
+
+  | |- context[fun _ => Rinv _] => t_div
+  | |- context[fun _ => Cinv _] => t_div
+end.
 Section AutoDiff.
 
 Lemma is_derive_continuous: forall 
@@ -514,17 +605,9 @@ Proof.
     apply filterdiff_snd.
 Qed.
 
-Create HintDb derive_compute.
-Hint Immediate filterdiff_id: derive_compute.
-Hint Immediate ex_filterdiff_id: derive_compute.
-    
-Hint Resolve is_derive_pair : derive_compute.
-Hint Resolve derive_ex_derive : derive_compute.
-Hint Resolve filterdiff_ex_filterdiff : derive_compute.
-Hint Resolve ex_derive_filterdiff : derive_compute.
-Hint Immediate filterdiff_fst : derive_compute.
-Hint Immediate filterdiff_snd : derive_compute.
 End AutoDiff.
+
+
 
 Section AutoContinuous.
 Lemma continuous_pair {T U1 U2: UniformSpace}:
@@ -561,64 +644,6 @@ Proof.
 Qed.
 End AutoContinuous. 
 
-Create HintDb teardown_leaf.
-Hint Extern 1 (continuous fst _) => (apply: continuous_fst) : teardown_leaf.
-Hint Extern 1 (continuous snd _) => (apply: continuous_snd) : teardown_leaf.
-Hint Extern 1 (continuous id _) => (apply: continuous_id) : teardown_leaf.
-Hint Extern 1 (continuous (fun =>_) _) => (apply: continuous_const) : teardown_leaf.
-
-Hint Extern 5 (continuous _ _) => (apply/cts_topology_2) : teardown_leaf. 
-Hint Extern 5 (continuous _ _) => (apply/cts_topology_1) : teardown_leaf. 
-
-Tactic Notation "teardown" 
-  tactic(topology_shift) 
-  tactic(t_plus) 
-  tactic(t_scal) 
-  tactic(t_mult) 
-  tactic(t_minus) 
-  tactic(t_opp) 
-  tactic(t_div) 
-  tactic(t_pair) :=
-  try auto with auto_continuous;
-  match goal with 
-  
-  | |- _ (fun _ => (_ , _)) _ => first [t_pair | topology_shift; t_pair]
-  
-  | |- _ (fun _ => plus _ _) _ => t_plus
-  | |- _ (fun _ => Rplus _ _) _ => t_plus
-  | |- _ (fun _ => Cplus _ _) _ => t_plus
-  | |- _ (plus _) _ => t_plus
-  | |- _ (Rplus _) _ => t_plus
-  | |- _ (Cplus _) _ => t_plus
-  
-  | |- _ ( fun _ => Cmult _ _) _ => first [t_mult | topology_shift; t_mult]
-  
-  | |- _ (fun _ => scal _ _) _ => t_scal
-  | |- _ (fun _ => mult _ _) _ => t_mult
-  | |- _ (fun _ => Rmult _ _) _ => t_mult
-  | |- _ (fun _ => Cmult _ _) _ => t_mult
-  | |- _ (scal _) _ => t_scal
-  | |- _ (mult _) _ => t_mult
-  | |- _ (Rmult _) _ => t_mult
-  | |- _ (Cmult _) _ => t_mult
-   
-  | |- _ (fun _ => minus _ _) _ => t_minus
-  | |- _ (fun _ => Rminus _ _) _ => t_minus
-  | |- _ (fun _ => Cminus _ _) _ => t_minus
-  | |- _ (minus _) _ => t_minus
-  | |- _ (Rminus _) _ => t_minus
-  | |- _ (Cminus _) _ => t_minus
-  
-  | |- _ (fun _ => opp _) _ => t_opp
-  | |- _ (fun _ => Ropp _) _ => t_opp
-  | |- _ (fun _ => Copp _) _ => t_opp
-  | |- _ (opp) _ => t_opp
-  | |- _ (Ropp) _ => t_opp
-  | |- _ (Copp) _ => t_opp
-  
-  | |- _ (fun _ => Rinv _) _ => t_div
-  | |- _ (fun _ => Cinv _) _ => t_div
-end.
 
 Ltac auto_cts := 
   rewrite /Rdiv /Cdiv; 
@@ -650,7 +675,7 @@ Ltac destruct_match :=
     let p := fresh in
     let l := fresh in
     set p := x;
-    destruct p as l
+    destruct p 
   end.
 
 Ltac copy := 
@@ -658,12 +683,6 @@ Ltac copy :=
   let j := fresh in
    move => h; pose proof h as j; move: h j.
 
-
-Lemma is_filter_lim_locally: forall {T:UniformSpace} (z:T),
-  is_filter_lim (locally z) z.
-Proof.
-  move => T z. rewrite //=.
-Qed.
 
 (** a bunch of facts I need about 2d differentiation that are missing from
 coquelicot*)
@@ -723,8 +742,7 @@ Lemma differentiable_pt_lim_left (f : R -> R -> R) (x y : R) (lx ly : R) :
     -> ex_derive (fun x => f x y) x.
 Proof.
   move => df.
-  have := (differentiable_pt_lim_is_derive df).
-  case => H _.
+  have [??] := (differentiable_pt_lim_is_derive df).
   exists lx; auto.
 Qed.
 
@@ -733,9 +751,281 @@ Lemma differentiable_pt_lim_right (f : R -> R -> R) (x y : R) (lx ly : R) :
     -> ex_derive (fun y => f x y) y.
 Proof.
   move => df.
-  have := (differentiable_pt_lim_is_derive df).
-  case => _ H.
+  have [??] := (differentiable_pt_lim_is_derive df).
   exists ly; auto.
 Qed.
 
+Lemma differentiable_pt_unique (f : R -> R -> R) (x y : R) :
+  differentiable_pt f x y -> 
+  differentiable_pt_lim f x y  
+    (Derive (fun x => f x y) x) 
+    (Derive (fun y => f x y) y).
+Proof. 
+  move => [l1 [l2]].
+  copy.
+  by move => /differentiable_pt_lim_unique [-> ->].
+Qed.
+
+Lemma differentiable_pt_ex_derive (f : R -> R -> R) (x y : R) :
+  differentiable_pt f x y -> 
+  ex_derive [eta f x] y /\
+  ex_derive (f ^~ y) x. 
+Proof. 
+  move => [l1 [l2]] /differentiable_pt_lim_is_derive [H1 H2].
+  split; [exists l2 | exists l1]; auto.
+Qed.
+Lemma differentiable_pt_ex_left (f : R -> R -> R) (x y : R) :
+  differentiable_pt f x y -> 
+  ex_derive (f ^~ y) x. 
+Proof. apply differentiable_pt_ex_derive. Qed.
+
+Lemma differentiable_pt_ex_right (f : R -> R -> R) (x y : R) :
+  differentiable_pt f x y -> 
+  ex_derive [eta f x] y.
+Proof. apply differentiable_pt_ex_derive. Qed.
+
+Lemma continuity_2d_pt_comp: 
+  forall f g h x y,
+  continuity_2d_pt f (g x y) (h x y) -> 
+  continuity_2d_pt g x y -> 
+  continuity_2d_pt h x y -> 
+  continuity_2d_pt (fun x' y' => f (g x' y') (h x' y')) x y.
+Proof.
+  move => f g h x y 
+    /continuity_2d_pt_filterlim Cf
+    /continuity_2d_pt_filterlim Cg 
+    /continuity_2d_pt_filterlim Ch. 
+  apply/ continuity_2d_pt_filterlim. 
+  apply: filterlim_comp_2; eauto.
+  apply: filterlim_filter_le_1 Cf.
+  move => P [del +].
+  rewrite /ball //= /prod_ball //= => H.
+  eapply Filter_prod. 
+  - exists del => x0; instantiate(1 := ball (g x y) del); auto. 
+  - exists del => y0; instantiate(1 := ball (h x y) del); auto.
+  - move => x0 y0 b1 b2. apply H; simpl; tauto.
+Qed.
+
+Lemma continuity_2d_pt_continuous: 
+  forall f x y,
+  continuity_2d_pt f x y <-> 
+  continuous (fun z => f z.1 z.2) (x,y).
+Proof.
+  move => f x y.
+  rewrite continuity_2d_pt_filterlim /continuous //=.
+Qed.
+
+Lemma continuity_2d_pt_continuous_right: 
+  forall f x y,
+  continuity_2d_pt f x y -> 
+  continuous (fun z => f x z) y.
+Proof.
+  move => f x y.
+  rewrite continuity_2d_pt_continuous //=. 
+  move => /(continuous_comp (fun z => (x, z.2))).
+  move => /(_ ltac:(auto_cts)) //= => + P lP.
+  move => /(_ P lP) [eps H].
+  exists eps => y' xball. 
+  apply: (H (x,y')).
+  split; auto. 
+  apply ball_center.
+Qed.
+
+Section DifferentiablePtComp.
+  Variables (f g h : R -> R -> R).
+  Variables (x y : R).
+  Hypothesis (df: differentiable_pt f (g x y) (h x y)).
+  Hypothesis (dg: differentiable_pt g x y ).
+  Hypothesis (dh: differentiable_pt h x y ).
+  Lemma differentiable_pt_comp   :
+    differentiable_pt (fun x' y'  => f (g x' y') (h x' y')) x y .
+  Proof.
+    move: df dg dh=> [? [? ?]] [? [? ?]] [? [? ?]]. 
+    eexists; eexists.
+    apply differentiable_pt_lim_comp; eauto.
+  Qed.
+  
+  Lemma differentiable_pt_comp_ex_derive  :
+    ex_derive (fun x' => f (g x' y) (h x' y)) x /\
+    ex_derive (fun y' => f (g x y') (h x y')) y 
+  .
+  Proof.
+    have := differentiable_pt_comp.
+    move => /differentiable_pt_ex_derive; tauto.
+  Qed.
+  
+  Lemma differentiable_pt_comp_ex_derive_right:
+    ex_derive (fun y' => f (g x y') (h x y')) y .
+  Proof. apply differentiable_pt_comp_ex_derive. Qed.
+  Lemma differentiable_pt_comp_ex_derive_left:
+    ex_derive (fun x' => f (g x' y) (h x' y)) x.
+  Proof.
+    apply differentiable_pt_comp_ex_derive.
+  Qed.
+
+  Lemma Derive_comp_2_left: 
+    Derive (fun z => f (g z y) (h z y)) x = 
+    Derive (f ^~ (h x y)) (g x y) * Derive (g ^~ y) x + 
+    Derive [eta (f (g x y))] (h x y) * Derive (h ^~ y) x.
+  Proof.
+    move: df => /differentiable_pt_unique => Df.
+    move: dg => /differentiable_pt_unique => Dg.
+    move: dh => /differentiable_pt_unique => Dh.
+    have := (differentiable_pt_lim_comp f g h x y _ _ _ _ _ _ Df Dg Dh). 
+    move=>  /differentiable_pt_lim_unique; tauto.
+  Qed.
+  Lemma Derive_comp_2_right: 
+    Derive (fun z => f (g x z) (h x z)) y = 
+    Derive (f ^~ (h x y)) (g x y) * Derive (g x) y + 
+    Derive [eta (f (g x y))] (h x y) * Derive (h x) y.
+  Proof.
+    move: df => /differentiable_pt_unique => Df.
+    move: dg => /differentiable_pt_unique => Dg.
+    move: dh => /differentiable_pt_unique => Dh.
+    have := (differentiable_pt_lim_comp f g h x y _ _ _ _ _ _ Df Dg Dh). 
+    move=>  /differentiable_pt_lim_unique; tauto.
+  Qed.
+
+End DifferentiablePtComp.
+
+Lemma differentiable_pt_scal: forall f x y,
+  ex_derive f y -> 
+  differentiable_pt (fun p q => p * f q) x y.
+Proof.
+  move => f x y Ex.
+  eexists; eexists.
+  apply/filterdiff_differentiable_pt_lim. 
+  apply: (@is_derive_filterdiff (fun p q => p * f q)). 
+  - apply global_local => x'; auto_derive; eauto; field_simplify;
+      instantiate (1:= fun _ q => f q); auto.
+  - auto_derive; auto. 
+  - auto_cts. 
+    apply: continuous_comp.
+    simpl.
+    1: auto with teardown_leaf.
+    apply: ex_derive_continuous.
+    auto.
+Qed.
+
+Lemma differentiable_pt_proj2: forall f x y,
+  ex_derive f y -> 
+  differentiable_pt (fun p q => f q) x y.
+Proof.
+  move => f x y Ex.
+  eexists; eexists.
+  apply/filterdiff_differentiable_pt_lim. 
+  apply: (@is_derive_filterdiff (fun p q =>  f q)). 
+  - apply global_local => x'; auto_derive; eauto.
+      instantiate (1:= fun _ _ => 0); auto.
+  - auto_derive; auto. 
+  - apply continuous_const. 
+Qed.
+Lemma differentiable_pt_proj1: forall f x y,
+  ex_derive f x -> 
+  differentiable_pt (fun p q => f p) x y.
+Proof.
+  move => f x y [??].
+  eexists; eexists.
+  apply: differentiable_pt_lim_proj1_0 .
+  apply/ is_derive_Reals.
+  eauto.
+Qed.
+
+Lemma differentiable_pt_ext: forall f g x y,
+  (forall p q, f p q = g p q) -> 
+  differentiable_pt f x y <-> differentiable_pt g x y.
+Proof.
+  split; move => [? [? G]]; eexists; eexists; 
+  eapply differentiable_pt_lim_ext.
+  - exists pos_half => *. apply H.
+  - eauto.
+  - exists pos_half => *. symmetry. apply H.
+  - eauto.
+Qed.
+
+Lemma differentiable_pt_ext_loc: forall f g x y,
+  locally_2d (fun p q => f p q = g p q) x y -> 
+  differentiable_pt f x y <-> differentiable_pt g x y.
+Proof.
+  move => f g x y /locally_2d_locally loc_eq.
+  split; move => [? [? /filterdiff_differentiable_pt_lim G]]; eexists; eexists;
+  apply/ filterdiff_differentiable_pt_lim;
+  [ |
+  have {}loc_eq: locally (x,y) (fun z => g z.1 z.2 = f z.1 z.2) by
+      apply: filter_imp loc_eq;
+      move => *; congruence
+  ];
+  apply: (filterdiff_ext_loc _ _ _ loc_eq).
+  - apply locally_filter.
+  - move => p /is_filter_lim_locally_unique <- //=.
+    move: loc_eq => /locally_singleton //=.
+  - eauto.
+  - apply locally_filter.
+  - move => p /is_filter_lim_locally_unique <- //=.
+    move: loc_eq => /locally_singleton //=.
+  - eauto.
+Qed.
+
+Lemma differentiable_pt_mult: forall x y,
+  differentiable_pt Rmult x y .
+Proof.
+  move => x y.
+  exists y; exists x.
+  apply/ filterdiff_differentiable_pt_lim.
+  apply: filterdiff_ext_lin.
+  2: move => z; rewrite [x in _ + x]Rmult_comm; reflexivity.
+  apply: filterdiff_mult_fct.
+  1: unfold_alg; move => *; field_simplify; auto.
+  1: split; first by apply is_linear_fst.
+  2: split; first by apply is_linear_snd.
+
+  all: move => p /is_filter_lim_locally_unique <- //= eps;
+       exists pos_half => *;
+       rewrite /minus plus_opp_r  norm_zero /zero /=;
+       apply Rmult_le_pos; first (by left; apply cond_pos);
+       apply norm_ge_0.
+Qed.
+
+Lemma differentiable_pt_minus: forall x y,
+  differentiable_pt Rminus x y .
+Proof.
+  move => x y.
+  exists 1; exists (-1).
+  apply/ filterdiff_differentiable_pt_lim.
+  apply: (@filterdiff_ext_lin _ _ _ _ _ _ ( fun z => z.1 - z.2)).
+  2: move => *; field_simplify; auto.
+  apply: filterdiff_minus.
+Qed.
+  
+Lemma differentiable_pt_rplus : forall x y, differentiable_pt Rplus x y .
+Proof.
+  move => x y.
+  exists 1; exists 1.
+  apply/ filterdiff_differentiable_pt_lim.
+  apply: filterdiff_ext_lin.
+  2: move => z; rewrite ?Rmult_1_r; reflexivity.
+  apply: filterdiff_plus.
+Qed.
 End Diff_2d.
+
+Ltac auto_differentiable_pt := 
+  rewrite /Rdiv; 
+  repeat (teardown
+          (fail "no topology changes here") 
+          (apply: differentiable_pt_comp; 
+             first (by apply: differentiable_pt_rplus)) 
+
+          (unfold_alg; apply: differentiable_pt_comp; 
+             first (by apply: differentiable_pt_mult)) 
+
+          (apply: differentiable_pt_comp; 
+             first (by apply: differentiable_pt_mult)) 
+
+          (apply: differentiable_pt_comp; 
+             first (by apply: differentiable_pt_minus)) 
+          (fail "not sure about 1d composition")
+          (fail "not sure about 1d composition")
+          (fail "doesn't make sense for differentiable_pt"));
+  try apply: differentiable_pt_proj2;
+  try apply: differentiable_pt_proj1;
+  auto with teardown_leaf.
