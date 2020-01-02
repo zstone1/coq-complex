@@ -197,8 +197,11 @@ Tactic Notation
 
 (** Lots of unfolding of definitions like ball or norm*)
 
-Section UnfoldStructures.
+Section CArith.
   
+Lemma Cminus_eq_0: forall z, z - z = 0.
+Proof. move => *. field_simplify_eq; auto. Qed.
+
 Lemma Rlt_0_neq_0: forall a,
   0 < a -> a <> 0.
 Proof.
@@ -344,7 +347,7 @@ Proof.
   apply (Rabs_le_between_min_max y x z).
   auto.
 Qed.
-End UnfoldStructures.
+End CArith.
 
 Ltac elim_norms := do !
   match goal with 
@@ -448,45 +451,7 @@ Ltac replace_Derive :=
     apply: is_derive_unique;
     auto_derive; auto.
 
-Ltac auto_derive_all_aux := 
-  first [progress eauto with derive_compute | auto_derive]; 
-  lra.
-
-(** Gets a diff into a is_derive form, then tries a computation. Or it fails.*)
-Ltac auto_derive_all :=
-  match goal with 
-  | |- is_derive _ _ _ => auto_derive_all_aux
-  | |- filterdiff id _ ?y => by auto
-  | |- filterdiff _ (locally _) _ =>
-      (progress rewrite -/(is_derive _ _ _)); auto_derive_all_aux
-  | |- filterdiff _ ?F _ => 
-       progress rewrite [F]/(within _ (locally _));
-       eapply (filterdiff_locally _ _);
-       first apply filter_le_within;
-       auto_derive_all_aux
-    
-  | |- ex_derive _ _ => auto_derive_all_aux
-  | |- ex_filterdiff id _ => by auto
-  | |- ex_filterdiff _ (locally _) =>
-      (progress rewrite -/(ex_derive _ _)); auto_derive_all_aux
-  | |- ex_filterdiff _ ?F => 
-       progress rewrite [F]/(within _ (locally _));
-       eapply (ex_filterdiff_locally _);
-       first apply filter_le_within;
-       apply ex_derive_filterdiff;
-       auto_derive_all_aux
-    
-  end.
-
 Create HintDb teardown_leaf.
-Hint Extern 1 (continuous fst _) => (apply: continuous_fst) : teardown_leaf.
-Hint Extern 1 (continuous snd _) => (apply: continuous_snd) : teardown_leaf.
-Hint Extern 1 (continuous id _) => (apply: continuous_id) : teardown_leaf.
-Hint Extern 1 (continuous (fun =>_) _) => (apply: continuous_const) : teardown_leaf.
-
-Hint Extern 5 (continuous _ _) => (apply/cts_topology_2) : teardown_leaf. 
-Hint Extern 5 (continuous _ _) => (apply/cts_topology_1) : teardown_leaf. 
-
 Tactic Notation "teardown" 
   tactic(topology_shift) 
   tactic(t_plus) 
@@ -536,6 +501,7 @@ Tactic Notation "teardown"
   | |- context[fun _ => Rinv _] => t_div
   | |- context[fun _ => Cinv _] => t_div
 end.
+
 Section AutoDiff.
 
 Lemma is_derive_continuous: forall 
@@ -607,6 +573,22 @@ Qed.
 
 End AutoDiff.
 
+Ltac auto_derive_teardown :=
+  rewrite /Rdiv /Cdiv;
+  repeat (teardown 
+          (apply/diff_topology_change) 
+          (apply: ex_derive_plus) 
+          (apply: ex_derive_scal) 
+          (apply: ex_derive_mult)
+          (apply: ex_derive_minus)
+          (apply: ex_derive_opp)
+          (apply: ex_derive_inv)
+          (apply: derive_ex_derive; apply/is_derive_pair));
+  auto with teardown_leaf.
+
+Hint Extern 4 (ex_derive id _) => (by apply: ex_derive_id) : teardown_leaf.
+Hint Extern 4 (ex_derive (fun => _) _) => (by apply: ex_derive_const) : teardown_leaf.
+
 
 
 Section AutoContinuous.
@@ -657,6 +639,14 @@ Ltac auto_cts :=
           (apply: continuous_comp)
           (apply: continuous_pair));
  auto with teardown_leaf.
+
+Hint Extern 1 (continuous fst _) => (apply: continuous_fst) : teardown_leaf.
+Hint Extern 1 (continuous snd _) => (apply: continuous_snd) : teardown_leaf.
+Hint Extern 1 (continuous id _) => (apply: continuous_id) : teardown_leaf.
+Hint Extern 1 (continuous (fun =>_) _) => (apply: continuous_const) : teardown_leaf.
+
+Hint Extern 5 (continuous _ _) => (apply/cts_topology_2) : teardown_leaf. 
+Hint Extern 5 (continuous _ _) => (apply/cts_topology_1) : teardown_leaf. 
 
 
     
@@ -1029,3 +1019,42 @@ Ltac auto_differentiable_pt :=
   try apply: differentiable_pt_proj2;
   try apply: differentiable_pt_proj1;
   auto with teardown_leaf.
+
+
+Ltac diff_help_ex_derive :=
+  match goal with 
+  | H: differentiable_pt_lim (fun _ _ => ?f _ _) ?x _ _ _
+    |- ex_derive (fun _ => ?f _ _) ?x =>  
+      apply (differentiable_pt_lim_left H)
+  | H: differentiable_pt_lim ?f ?x _ _ _
+    |- ex_derive (fun _ => ?f _ _) ?x =>  
+      apply (differentiable_pt_lim_left H)
+  | H: differentiable_pt_lim ?f ?x _ _ _
+    |- ex_derive (?f _) ?x =>  
+      apply (differentiable_pt_lim_left H)
+
+  | H: differentiable_pt_lim (fun _ _ => ?f _ _) _ ?y _ _
+    |- ex_derive (fun _ => ?f _ _) ?y =>  
+      apply (differentiable_pt_lim_right H)
+  | H: differentiable_pt_lim ?f _ ?y _ _
+    |- ex_derive (fun _ => ?f _ _) ?y =>  
+      apply (differentiable_pt_lim_right H)
+  | H: differentiable_pt_lim ?f _ ?y _ _
+    |- ex_derive (?f _) ?y =>  
+      apply (differentiable_pt_lim_right H)
+  end.
+Hint Extern 4 (ex_derive _ _) => (by diff_help_ex_derive) : teardown_leaf.
+Hint Extern 2 (differentiable_pt _ _ _)  => 
+  (match goal with 
+  | H: differentiable_pt_lim ?f ?x ?y _ _ |- (differentiable_pt ?f ?x ?y) =>
+    try (now (eexists; eexists; eauto))
+  end) : teardown_leaf.
+
+Hint Extern 5 (ex_derive _ _ ) => (
+  match goal with 
+  | H: differentiable_pt ?f ?x ?y |- ex_derive ?g ?y =>  
+     move:H => /differentiable_pt_ex_derive; tauto
+  | H: differentiable_pt ?f ?x ?y |- ex_derive ?g ?x =>  
+     move:H => /differentiable_pt_ex_derive; tauto
+  end
+  ) : teardown_leaf.

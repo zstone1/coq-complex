@@ -10,13 +10,7 @@ Unset Strict Implicit.
 Unset Printing Implicit Defensive.
 Set Bullet Behavior "Strict Subproofs".
 
-Require Import domains ext_rewrite real_helpers.
-Require Import domains cauchy_riemann path_independence cauchy_integral .
-
-Lemma Cminus_eq_0: forall z, z - z = 0.
-Proof. move => *. field_simplify_eq; auto. Qed.
-
-
+Require Import complex_core helpers.
 
 Section UniformOn.
 
@@ -51,9 +45,6 @@ split.
   intros t.
   apply He.
 Qed.
-
-
-
 
 Global Instance uniformly_on_filter: forall E f,
   ProperFilter (uniformly_on E f).
@@ -133,7 +124,7 @@ Proof.
   auto.
 Qed.
     
-Lemma global_le_local : forall (E: U -> Prop) f ,
+Lemma filter_locally_le_uniformly : forall (E: U -> Prop) f ,
   filter_le (locally f) (uniformly_on E f).
 Proof.
   move => E1 f P [del H].
@@ -143,7 +134,7 @@ Proof.
   apply gbd.
 Qed.
 
-Lemma global_true : forall f ,
+Lemma filter_uniformly_global_local : forall f ,
   filter_le (uniformly_on (fun => True) f) (locally f).
 Proof.
   move => f P [del H].
@@ -427,6 +418,8 @@ Qed.
 
 End UniformOn.
 
+Open Scope C.
+
 Lemma uniformly_bounded_mult {T:Type} {U:UniformSpace}: 
   forall F {FF: Filter F} (E: U -> Prop) (f: T -> U -> C) (g: U -> C) flim,
   (exists (M:posreal), forall z, E z -> norm(g z) < M  ) ->
@@ -477,6 +470,7 @@ Proof.
   replace (pos eps) with ((eps/(2*M)) *M + (eps/(2*M)) * M )%R; 
     last field_simplify_eq; auto.
   2: apply Rlt_0_neq_0; lra.
+  unfold_ball; unfold_alg.
   split.
   - set p := ( x in Rabs x).
     replace p with (((f t z).1 - (flim z).1) * (g z).1 - 
@@ -553,7 +547,6 @@ move => P Q.
 tauto.
 Qed.
 
-Open Scope program_scope.
 Lemma path_in_circles: forall (g: R -> C) D a b, 
   open D -> 
   a < b ->

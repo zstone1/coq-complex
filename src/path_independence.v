@@ -32,17 +32,6 @@ Definition SmoothPath g1 g2 r t:=
   locally_2d (SmoothFun g1) r t /\
   locally_2d (SmoothFun g2) r t.
 
-Lemma c_circle_norm: forall r t,
-  Cmod( (r*cos t, r * sin t)) = Rabs r.
-Proof.
-  move => r t.
-  elim_norms.
-  - nra.
-  - field_simplify_eq. 
-    rewrite -Rmult_plus_distr_l Rplus_comm 
-            -?Rsqr_pow2 sin2_cos2.
-    lra.
-Qed.
 
 Ltac differentiable_pt_compute_derive:=
   eapply differentiable_pt_ext; 
@@ -257,72 +246,6 @@ Proof.
 Qed.
 End Homotopy.
 
-Ltac diff_help_old :=
-  match goal with 
-  | |- ex_derive (fun _ => ?u (_ _ _) (_ _ _)) _ => 
-    first[ apply: (@differentiable_pt_comp_ex_derive_left u )|
-           apply: (@differentiable_pt_comp_ex_derive_right u)]
-  | H: differentiable_pt_lim ?f ?x ?y _ _ |- differentiable_pt ?f ?x ?y => 
-    eexists; eexists; eapply H
-  | H: differentiable_pt ?f ?x ?y |- differentiable_pt_lim ?f ?x ?y _ _ => 
-    move: H => [h1 [h2 +]]
-  | H: differentiable_pt ?f ?x ?y |- ex_derive ?g ?y =>  
-     move:H => /differentiable_pt_ex_derive; tauto
-  | H: differentiable_pt ?f ?x ?y |- ex_derive ?g ?x =>  
-     move:H => /differentiable_pt_ex_derive; tauto
-  end.
-
-Ltac diff_help_ex_derive :=
-  match goal with 
-  | H: differentiable_pt_lim (fun _ _ => ?f _ _) ?x _ _ _
-    |- ex_derive (fun _ => ?f _ _) ?x =>  
-      apply (differentiable_pt_lim_left H)
-  | H: differentiable_pt_lim ?f ?x _ _ _
-    |- ex_derive (fun _ => ?f _ _) ?x =>  
-      apply (differentiable_pt_lim_left H)
-  | H: differentiable_pt_lim ?f ?x _ _ _
-    |- ex_derive (?f _) ?x =>  
-      apply (differentiable_pt_lim_left H)
-
-  | H: differentiable_pt_lim (fun _ _ => ?f _ _) _ ?y _ _
-    |- ex_derive (fun _ => ?f _ _) ?y =>  
-      apply (differentiable_pt_lim_right H)
-  | H: differentiable_pt_lim ?f _ ?y _ _
-    |- ex_derive (fun _ => ?f _ _) ?y =>  
-      apply (differentiable_pt_lim_right H)
-  | H: differentiable_pt_lim ?f _ ?y _ _
-    |- ex_derive (?f _) ?y =>  
-      apply (differentiable_pt_lim_right H)
-  end.
-Ltac auto_derive_teardown :=
-  rewrite /Rdiv /Cdiv;
-  repeat (teardown 
-          (apply/diff_topology_change) 
-          (apply: ex_derive_plus) 
-          (apply: ex_derive_scal) 
-          (apply: ex_derive_mult)
-          (apply: ex_derive_minus)
-          (apply: ex_derive_opp)
-          (apply: ex_derive_inv)
-          (apply: derive_ex_derive; apply/is_derive_pair));
-  auto with teardown_leaf.
-
-Hint Extern 4 (ex_derive _ _) => (by diff_help_ex_derive) : teardown_leaf.
-Hint Extern 4 (ex_derive id _) => (by apply: ex_derive_id) : teardown_leaf.
-Hint Extern 2 (differentiable_pt _ _ _)  => 
-  (match goal with 
-  | H: differentiable_pt_lim ?f ?x ?y _ _ |- (differentiable_pt ?f ?x ?y) =>
-    try (now (eexists; eexists; eauto))
-  end) : teardown_leaf.
-
-Hint Extern 5 (ex_derive _ _ ) => (
-  match goal with 
-  | H: differentiable_pt ?f ?x ?y |- ex_derive ?g ?y =>  
-     move:H => /differentiable_pt_ex_derive; tauto
-  | H: differentiable_pt ?f ?x ?y |- ex_derive ?g ?x =>  
-     move:H => /differentiable_pt_ex_derive; tauto
-  end
-  ) : teardown_leaf.
 
 Lemma path_independence_part_1: forall
     (u v: R -> R -> R) udx udy vdx vdy

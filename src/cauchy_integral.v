@@ -11,44 +11,13 @@ Unset Printing Implicit Defensive.
 Set Bullet Behavior "Strict Subproofs".
 
 
-Require Import domains cauchy_riemann homotopy path_independence.
+Require Import complex_core helpers path_independence.
 
 Open Scope program_scope.
 Open Scope general_if_scope.
-Require Import domains ext_rewrite real_helpers.
 
 Section CauchyIntegral.
 Open Scope C.
-Definition c_circle (r: R) (t:R):C := r * (cos t, sin t).
-Definition c_circle' (r: R) (t:R):C := r * (-sin t, cos t)%R.
-
-Open Scope R.
-
-Lemma c_circle_norm: forall r t,
-  Cmod( (r*cos t, r * sin t)) = Rabs r.
-Proof.
-  move => r t.
-  elim_norms.
-  - nra.
-  - field_simplify_eq. 
-    rewrite -Rmult_plus_distr_l Rplus_comm 
-            -?Rsqr_pow2 sin2_cos2.
-    lra.
-Qed.
-Lemma c_circle_norm_2: forall r t,
-  Cmod(c_circle r t) = Rabs r.
-Proof.
-  move => r t.
-  elim_norms.
-  - nra.
-  - field_simplify_eq. 
-    rewrite -Rmult_plus_distr_l Rplus_comm 
-            -?Rsqr_pow2 sin2_cos2.
-    lra.
-Qed.
-
-Open Scope C.
-
 
 Lemma holo_path_local : forall f f' g1 g2 D r t, 
   open D ->
@@ -91,14 +60,12 @@ Proof.
   enough (forall r' t', c_circle' r' t' = ?dg r' t') as dg_eq.
   under RInt_ext => t _.
     rewrite dg_eq.
-    set p := _ + _.
-    simplify_as_R2 e p.
+    simplify_as_R2 (_ + _).
   over.
   symmetry.
   under RInt_ext => t _.
     rewrite dg_eq.
-    set p := _ + _.
-    simplify_as_R2 e p.
+    simplify_as_R2 (_ + _).
   over.
   symmetry.
   apply: (@path_independence_loop 0 (2*PI) r1 r2 
@@ -112,32 +79,22 @@ Proof.
     apply: holo_path_local.
     + apply openD.
     + apply subset.
-      set p := (_,_).
-      replace p with (z + c_circle r t); last by
-        (rewrite /p; set q := LHS; simplify_as_R2 e q).
-      rewrite /Cminus Copp_plus_distr Cplus_assoc Cplus_opp_r Cplus_0_l 
-              Cmod_opp c_circle_norm_2 Rabs_pos_eq //=.
+      simplify_as_R2 (x in Cmod x).
+      rewrite c_circle_norm.
+      rewrite Rabs_Ropp Rabs_pos_eq //=.
       lra.
     + move => *; apply smooth_circ.
     + apply holo.
-  - simpl.
-    move => r rbd.
-    split; first by 
-      rewrite cos_0 sin_0 cos_2PI sin_2PI. 
-    f_equal.
-    + under Derive_ext => t do rewrite cos_0.
-      symmetry.
-      under Derive_ext => t do rewrite cos_2PI.
-      auto.
-    + under Derive_ext => t do rewrite sin_0.
-      symmetry.
-      under Derive_ext => t do rewrite sin_2PI.
-      auto.
-  - move => r' t'.
-    rewrite /c_circle' /Cmult /=.
-    f_equal; field_simplify; symmetry;
-    apply: is_derive_unique; auto_derive;
-      auto; field_simplify; auto.
+  - move => r rbd.
+    repeat replace_Derive.
+    rewrite cos_0 sin_0 cos_2PI sin_2PI. 
+    auto.
+  - move => r' t' //=.
+    repeat replace_Derive.
+    rewrite /c_circle'.
+    simplify_as_R2 LHS;
+    simplify_as_R2 RHS.
+    auto.
 Qed.
       
 Lemma cauchy_integral_theorem : forall (f: C -> C) z (D: C -> Prop) (r:posreal),
@@ -151,300 +108,24 @@ Proof.
   rewrite -(@circ_independence f z 0 r D ); auto.
   + rewrite /CInt .
     under RInt_ext => t _.
-      rewrite /c_circle'.
-      set p := _ * _.
-      simplify_as_R2 e p.
-      replace (0,0) with (zero (G:= C_AbelianGroup)); last by auto.
+      simpl. rewrite /c_circle /c_circle' ?Cmult_0_l ?Cmult_0_r.
     over.
     rewrite RInt_const.
     rewrite scal_zero_r.
     auto.
   + lra.
-  + move => *. 
-    apply subset.
-    lra.
+  + move => *; apply subset; lra.
 Qed.
 
 Lemma rmult_scal : forall (r:R) (z:C),
   (RtoC r) * z = scal r z.
 Proof.
-  move => r [z1 z2]. unfold_alg; rewrite /prod_scal /Cmult.
+  move => r [z1 z2]. unfold_alg; rewrite /prod_scal /scal. unfold_alg.
   simpl.
-  set p := LHS.
-  simplify_as_R2 e p.
-  set p := RHS.
-  simplify_as_R2 e p.
+  by simplify_as_R2 LHS.
 Qed.
-
-Definition cts_on_contour (f: C -> C) g := 
-  forall t, l_end g <= t <= r_end g -> continuous f (gamma g t).
-
-Lemma ex_CInt_RInt: forall f g, 
-  ex_RInt (fun t => f (gamma g t) * (gamma' g t)) (l_end g) (r_end g) <-> 
-  ex_CInt g f.
-Proof.
-  move => f g; split;
-  move => [l H]; exists l; apply H.
-Qed.
-
-Lemma cts_CInt: forall (f: C -> C) g, 
-  cts_on_contour f g -> ex_CInt g f.
-Proof.
-  move => f g cts.
-  rewrite -ex_CInt_RInt -ex_RInt_prod.
-  apply: ex_RInt_continuous => t tbd.
-  rewrite Rmin_left in tbd.
-  rewrite Rmax_right in tbd.
-  2-3: left; apply endpoint_interval.
-  change_topology.
-  apply: continuous_mult; first apply continuous_comp.
-  - eapply filterlim_filter_le_2.
-    2: apply ex_derive_continuous; eexists; eapply (contour_derive tbd)  .
-    move => P. auto.
-  - move: cts => /(_ t tbd) => H.
-    eapply filterlim_filter_le_2.
-    2: apply H.
-    move => P. 
-    rewrite prod_c_topology_eq //=.
-  - eapply filterlim_filter_le_2.
-    2: apply (cts_derive); auto.
-    move => *; rewrite prod_c_topology_eq //=.
-Qed.
-       
 
 Open Scope C.
-
-Lemma div_z_continuous_contour: forall a (r: posreal) , 
-  cts_on_contour (fun q : C => Cinv (q - a)) (circC a r).
-Proof.
-  move => a r.
-  move => t tbd; simpl in *.
-  have ?:= cond_pos r.
-  apply continuous_comp; first repeat auto_continuous_aux.
-  apply: continuous_Cinv.
-  set p := (x in x <> _).
-  simplify_as_R2 e p.
-  rewrite Cmod_gt_0 c_circle_norm Rabs_pos_eq; nra.
-Qed.
-
-Lemma cts_on_contour_mult: forall f g gam, 
-  cts_on_contour f gam ->
-  cts_on_contour g gam -> 
-  cts_on_contour (fun z => f z * g z) gam.
-Proof.
-  move => f g gam ctsf ctsg t tbd.
-  change_topology.
-  apply: continuous_mult; change_topology.
-  - apply: ctsf; auto.
-  - apply: ctsg; auto.
-Qed.
-
-
-Open Scope R.
-
-Open Scope C.
-
-Lemma CHolo_subset: forall P Q f, 
-  (forall z, P z -> Q z) -> 
-  CHolo_on Q f ->
-  CHolo_on P f.
-Proof.
-  move => P Q f sub [f' holo].
-  exists f' => z Pz.
-  apply holo.
-  apply sub.
-  auto.
-Qed.
-
-Lemma CHolo_on_plus: forall D f g, 
-  CHolo_on D f ->
-  CHolo_on D g -> 
-  CHolo_on D (fun z => f z + g z )  
-.
-Proof.
-  move => D f g [f' fholo] [g' gholo].
-  exists (fun z => f' z  + g' z) => z Dz.
-  split.
-  - apply: is_derive_plus.
-    + apply fholo; auto. 
-    + apply gholo; auto.
-  - apply: continuous_plus.
-    + apply fholo; auto. 
-    + apply gholo; auto.
-Qed.
-
-Lemma diff_topology_change: forall f f' z, 
- 
- @is_derive C_AbsRing (C_NormedModule) f z f' <-> 
- @is_derive C_AbsRing (AbsRing_NormedModule C_AbsRing) f z f'.
-Proof.
-  move => f f' z.
-  rewrite /is_derive /filterdiff.
-  split;
-  move => [_ Hf]; (split; first by apply is_linear_scal_l);
-  move => + /is_filter_lim_locally_unique <- eps => _;
-  move: Hf => /(_ z);
-  [ move => /(_ (@is_filter_lim_locally (AbsRing_UniformSpace C_AbsRing) z ))
-  | move => /(_ (@is_filter_lim_locally (AbsRing_UniformSpace C_AbsRing) z ))
-  ];
-  move => /(_ eps); auto.
-Qed.
-
-Lemma CHolo_on_mult: forall D f g, 
-  CHolo_on D f ->
-  CHolo_on D g -> 
-  CHolo_on D (fun z => f z * g z )  
-.
-Proof.
-  move => D f g [f' fholo] [g' gholo].
-  exists (fun q => f' q * g q + f q * g' q) => z Dz.
-  split.
-  - move: fholo => /(_ z Dz) [/diff_topology_change fholo _].
-    move: gholo => /(_ z Dz) [/diff_topology_change gholo _].
-    rewrite /Holo /is_derive in fholo gholo.
-    have:= (@filterdiff_mult_fct 
-      C_AbsRing 
-      (AbsRing_NormedModule C_AbsRing) 
-      f g z _ _ Cmult_comm fholo gholo ).
-    move => H.
-    apply/diff_topology_change.
-    rewrite /is_derive.
-    move: H => //=.
-    unfold_alg => H.
-    under ext_filterdiff_d => t.
-      set p := _ * _. 
-      replace p with (t * f' z * g z + f z * (t * g' z)).
-    over.
-    rewrite /p; field_simplify_eq; auto.
-    auto.
-  - apply: continuous_plus;
-    apply/continous_C_NormedModule;
-    apply: continuous_mult.
-    + apply/continous_C_NormedModule; apply fholo; auto.
-    + move :gholo => /(_ z Dz) [+ _].
-      move => /is_derive_continuous H.
-      apply/continous_C_NormedModule.
-      eapply filterlim_filter_le_1.
-      2: exact H.
-      move => ?. apply locally_C.
-    + move :fholo => /(_ z Dz) [+ _].
-      move => /is_derive_continuous H.
-      apply/continous_C_NormedModule.
-      eapply filterlim_filter_le_1.
-      2: exact H.
-      move => ?. apply locally_C.
-    + apply/continous_C_NormedModule; apply gholo; auto.
-Qed.
-
-Lemma Cmult_zero : forall z, 
-  z * z = 0 -> z = 0.
-Proof.
-  move => z H.
-  apply Cmod_eq_0.
-  have: (Cmod z * Cmod z = 0)%R.
-  2: by nra.
-  rewrite -Cmod_mult -Cmod_0.
-  by f_equal.
-Qed.
-
-Lemma CHolo_on_const: forall D k, 
-  CHolo_on D (fun => k).
-Proof.
-  move => D k.
-  exists (fun => 0) => z Dz.
-  split.
-  - apply: is_derive_const.
-  - auto_continuous_aux.
-Qed.
-
-Lemma CHolo_on_id: forall D, 
-  CHolo_on D id.
-Proof.
-  move => D.
-  exists (fun => one) => z Dz.
-  split.
-  - apply/diff_topology_change; apply: is_derive_id.
-  - apply: continuous_const.
-Qed.
-
-
-Lemma CHolo_on_div: forall D f, 
-  CHolo_on D f ->
-  (forall z, D z -> f z <> 0) ->
-  CHolo_on D (fun z => / (f z) )  
-.
-Proof.
-  move => D f [f' fholo].
-  exists (fun q => f' q * (-1/((f q * f q)))) => z Dz.
-  split.
-  - move: fholo => /(_ z Dz) [/diff_topology_change fholo _].
-    rewrite /Holo /is_derive in fholo.
-    apply: is_derive_comp; last by apply: fholo.
-    apply holo_inv; auto.
-  - apply/continous_C_NormedModule;
-    apply: continuous_mult; first by 
-      apply/continous_C_NormedModule; apply fholo; auto.
-    apply: continuous_mult; first by apply continuous_const.
-    apply continuous_comp.
-    + apply/continous_C_NormedModule;
-      apply: continuous_mult; 
-      move :fholo => /(_ z Dz) [+ _];
-      move => /is_derive_continuous I;
-      apply/continous_C_NormedModule;
-      (eapply filterlim_filter_le_1; last by 
-       exact I);
-      move => ?; apply locally_C.
-    + apply/ continous_C_AbsRing. 
-      apply: continuous_Cinv.
-      move :H => /(_ z Dz) H.
-      move => G.
-      contradict H.
-      by apply: Cmult_zero.
-Qed.
-
-Lemma Copp_mult :forall z, 
-  -z = -1 * z.
-Proof.
-  move => z.
-  set p := LHS.
-  set q := RHS.
-  simplify_as_R2 e p.
-  simplify_as_R2 e q.
-  auto.
-Qed.
-
-Lemma ext_CHolo_on : forall D f g,
-(forall z, f z = g z) -> 
-  CHolo_on D f <-> CHolo_on D g.
-Proof.
-  move => D f g ext.
-  split;
-  move => [f' H]; 
-  exists f' => z Dz;
-  split.
-  - apply (is_derive_ext f); auto.
-    apply H; auto.
-  - apply H; auto.
-  - apply (is_derive_ext g); auto.
-    apply H; auto.
-  - apply H; auto.
-Qed.
-
-Lemma CHolo_on_minus: forall D f g, 
-  CHolo_on D f ->
-  CHolo_on D g ->
-  CHolo_on D (fun z => f z - g z )  
-.
-Proof.
-  move => D f g holof holog.
-  rewrite /Cminus.
-  apply CHolo_on_plus; first by auto.
-  under ext_CHolo_on => z do rewrite Copp_mult.
-  apply: CHolo_on_mult. 
-  - apply: CHolo_on_const.
-  - auto.
-Qed.
-
 Lemma integral_div_z: forall a (r: posreal), 
   CInt (circC a r) (fun z => /(z-a)) = 2 * PI * Ci.
 Proof.
@@ -453,8 +134,7 @@ Proof.
   rewrite /CInt split_cint.
   2: shelve.
   simpl.
-  set p := RHS.
-  simplify_as_R2 e p.
+  simplify_as_R2 RHS.
   rewrite /c_circle /c_circle' //=.
   f_equal.
   - rewrite /compose //=.
@@ -529,6 +209,11 @@ Proof.
   lra.
 Qed.
 
+Tactic Notation "max_min_contour" hyp(H) := 
+  rewrite Rmin_left in H; last (by left; apply endpoint_interval);
+  rewrite Rmax_right in H; last (by left; apply endpoint_interval).
+  
+
 Lemma CInt_abs_bound: forall f g M, 
   cts_on_contour f g -> 
   (forall t, l_end g <= t <= r_end g -> abs (f (gamma g t)) <= M) ->
@@ -543,34 +228,27 @@ Proof.
      rewrite -RInt_scal.
      instantiate(1:= fun x => scal M (norm (gamma' g x))).
      apply: RInt_correct. 
-     all: apply ex_RInt_continuous => t tbd.
-     rewrite Rmin_left in tbd.
-     rewrite Rmax_right in tbd.
-     2,3: left; by apply endpoint_interval.
-     1: apply: continuous_scal; first by auto_continuous_aux.
-     all: apply continuous_comp.
-     1,3: apply cts_derive; auto.
-     rewrite Rmin_left in tbd.
-     rewrite Rmax_right in tbd.
-     2,3: left; by apply endpoint_interval.
-     by auto.
-     all: apply filterlim_norm.
+     all: apply ex_RInt_continuous => t tbd; max_min_contour tbd.
+     all: auto_cts.
+     all: apply continuous_comp; last apply: filterlim_norm.
+     all: apply cts_derive; auto.
   }
   move => t tbd.
   simpl.
   set p := norm _.
   `Begin Rle p. { rewrite /p.
 
-  | {( norm( scal (f (gamma g t)) (gamma' g t)) )}   unfold_alg.
+  | {( norm( scal (f (gamma g t)) (gamma' g t)) )}  unfold_alg;
+      rewrite /prod_norm /norm /Cmod -?Rsqr_pow2 /= /abs /= -?Rsqr_abs.
 
   | {( (abs (f (gamma g t)) * norm _) )%R}  apply: norm_scal.
 
-  | {( (M * norm _) )%R}  idtac.
-    apply: Rmult_le_compat_r; first (by apply: norm_ge_0).
+  | {( (M * norm _) )%R}  
+    apply: Rmult_le_compat_r; first (by apply: norm_ge_0);
     by apply: fbd.
   `Done.
   }
-  unfold_alg.
+  auto.
 Qed.
 
 Program Definition pos_div_2PI (r: posreal): posreal := 
@@ -580,31 +258,6 @@ Proof.
   apply: RIneq.Rdiv_lt_0_compat.
   - apply: cond_pos.
   - have ?:= PI_RGT_0; lra.
-Qed.
-
-Ltac change_topology_1 := 
-  (apply: filterlim_filter_le_1;
-  [ move => P; apply prod_c_topology_eq
-  | auto
-  ]).
-
-Lemma continous_C_AbsRing_1: forall U f z, 
-  @continuous (AbsRing_UniformSpace C_AbsRing) U f z <-> 
-  @continuous C_UniformSpace U f z.
-Proof.
-  move => *; split => ?; change_topology_1.
-Qed.
-
-Lemma c_circle'_norm: forall r t,
-  Cmod(c_circle' r t) = Rabs r.
-Proof.
-  move => r t.
-  elim_norms.
-  - nra.
-  - field_simplify_eq. 
-    rewrite -Rmult_plus_distr_l 
-            -?Rsqr_pow2 sin2_cos2.
-    lra.
 Qed.
 
 Open Scope C.
@@ -623,13 +276,15 @@ Lemma pow_n_cts : forall z n, continuous (fun z:C => pow_n z n) z.
 Proof.
   move => z.
   elim.
-  - simpl. auto_continuous_aux.
+  - simpl; auto_cts. 
   - move => n IH //=. 
-    apply /continous_C_AbsRing.
-    apply: continuous_mult.
-    + apply /continous_C_AbsRing. auto_continuous_aux.
-    + apply /continous_C_AbsRing. apply IH.
+    apply/cts_topology_1.
+    apply/cts_topology_2.
+    apply: continuous_mult; auto_cts.
 Qed.
+
+Hint Extern 5 (continuous _ _ ) => 
+  (apply: ex_derive_continuous; eexists; eauto) : teardown_leaf.
 
 Lemma cauchy_integral_aux: forall f (r eps: posreal) a,
   CHolo_on (ball a r) f ->
@@ -641,15 +296,11 @@ Lemma cauchy_integral_aux: forall f (r eps: posreal) a,
 Proof.
   move => f r eps a holo.
   have: continuous f a. {
-    eapply filterlim_filter_le_1.
-    2: apply: ex_derive_continuous. 
-    1: move => P. apply prod_c_topology_eq.
-    case: holo => f' /(_ a (ball_center _ _)) H.
-    exists (f' a).
-    apply H.
+    case: holo => f' /(_ a (ball_center _ _)) [H ?].
+    auto_cts.
   }
-  move => /continous_C_AbsRing 
-          /continous_C_AbsRing_1 
+  move => /cts_topology_1 
+          /cts_topology_2 
           /filterlim_locally /(_ (pos_div_2PI eps)) [del h].
   have ?:= cond_pos del.
   pose del2 := mkposreal (Rmin (pos_div_2 del) (pos_div_2PI r)) (
@@ -675,7 +326,7 @@ Proof.
   
   |  {(  scal ((eps/(2*PI))/(del2^m )%R) _ )%R} apply: CInt_abs_bound .
     {
-      move => z zbd. 
+      auto_cts.
       apply/continous_C_AbsRing.
       apply: continuous_mult.
       - apply: continuous_minus; last by auto_continuous_aux.

@@ -2,7 +2,7 @@
 
 src/helpers.v
 src/complex_core.v
-src/homotopy.v
 src/path_independence.v
 src/compact_convergence.v
 src/cauchy_integral.v
+src/analytic.v

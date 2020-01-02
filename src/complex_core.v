@@ -296,6 +296,8 @@ Qed.
 
 End Holomorphism.
 
+Hint Immediate continuous_Cinv: teardown_leaf.
+
 Section CauchyRiemann.
 
 Definition CauchyRiemann (udx udy vdx vdy: C -> R) z:=
@@ -844,6 +846,34 @@ Proof.
     apply fholo; auto. 
 Qed.
 
+
+Lemma Copp_mult :forall z, 
+  -z = -1 * z.
+Proof.
+  move => z.
+  simplify_as_R2 LHS;
+  simplify_as_R2 RHS;
+  auto.
+Qed.
+
+Lemma ext_CHolo_on : forall D f g,
+(forall z, f z = g z) -> 
+  CHolo_on D f <-> CHolo_on D g.
+Proof.
+  move => D f g ext.
+  split;
+  move => [f' H]; 
+  exists f' => z Dz;
+  split.
+  - apply (is_derive_ext f); auto.
+    apply H; auto.
+  - apply H; auto.
+  - apply (is_derive_ext g); auto.
+    apply H; auto.
+  - apply H; auto.
+Qed.
+
+
 Hint Extern 5 (continuous _ _) => (apply/cts_topology_2) : teardown_leaf. 
 
 Lemma CHolo_on_mult: forall D f g, 
@@ -958,6 +988,42 @@ Section Contours.
   Definition c_circle (r: R) (t:R):C := r * (cos t, sin t).
   Definition c_circle' (r: R) (t:R):C := r * (-sin t, cos t)%R.
   
+  Lemma c_circle_norm: forall r t,
+    Cmod( (r*cos t, r * sin t))%R = Rabs r.
+  Proof.
+    move => r t.
+    elim_norms.
+    - nra.
+    - field_simplify_eq. 
+      rewrite -Rmult_plus_distr_l Rplus_comm 
+              -?Rsqr_pow2 sin2_cos2.
+      lra.
+  Qed.
+  
+  Lemma c_circle_norm_2: forall r t,
+    Cmod(c_circle r t) = Rabs r.
+  Proof.
+    move => r t.
+    elim_norms.
+    - nra.
+    - field_simplify_eq. 
+      rewrite -Rmult_plus_distr_l Rplus_comm 
+              -?Rsqr_pow2 sin2_cos2.
+      lra.
+  Qed.
+
+  Lemma c_circle'_norm: forall r t,
+    Cmod(c_circle' r t) = Rabs r.
+  Proof.
+    move => r t.
+    elim_norms.
+    - nra.
+    - field_simplify_eq. 
+      rewrite -Rmult_plus_distr_l 
+              -?Rsqr_pow2 sin2_cos2.
+      lra.
+  Qed.
+
   Record Contour := mkContour {
     gamma: R -> C; 
     gamma': R -> C;
@@ -996,14 +1062,63 @@ Section Contours.
     apply/ is_derive_pair; split; auto_derive; auto; field_simplify; auto.
   Qed.
   
-  Definition Cmult_Abs z1 z2: C_AbsRing := Cmult z1 z2.
-  
   Obligation 3.
   Proof.
     rewrite /c_circle'.
     auto_cts.
     1,2: apply: ex_derive_continuous; auto_derive; auto.
   Qed.
+
+  Definition cts_on_contour (f: C -> C) g := 
+    forall t, l_end g <= t <= r_end g -> continuous f (gamma g t).
+  
+  Lemma ex_CInt_RInt: forall f g, 
+    ex_RInt (fun t => f (gamma g t) * (gamma' g t)) (l_end g) (r_end g) <-> 
+    ex_CInt g f.
+  Proof.
+    move => f g; split;
+    move => [l H]; exists l; apply H.
+  Qed.
+  
+  Lemma cts_CInt: forall (f: C -> C) g, 
+    cts_on_contour f g -> ex_CInt g f.
+  Proof.
+    move => f g cts.
+    rewrite -ex_CInt_RInt -ex_RInt_prod.
+    apply: ex_RInt_continuous => t tbd.
+    rewrite Rmin_left in tbd.
+    rewrite Rmax_right in tbd.
+    2-3: left; apply endpoint_interval.
+    have ?:= @cts_derive g t (ltac:(auto)).
+    have := @contour_derive g t (ltac:(auto)).
+    move => /is_derive_continuous ?.
+    move:cts => /(_ t (ltac:(auto))) ?. 
+    auto_cts.
+    apply: continuous_comp;
+    auto_cts.
+  Qed.
+  
+  Lemma div_z_continuous_contour: forall a (r: posreal) , 
+    cts_on_contour (fun q : C => Cinv (q - a)) (circC a r).
+  Proof.
+    move => a r.
+    move => t tbd; simpl in *.
+    have ?:= cond_pos r.
+    auto_cts.
+    simple apply continuous_Cinv.
+    simplify_as_R2 (x in x <> _).
+    rewrite Cmod_gt_0 c_circle_norm Rabs_pos_eq; nra.
+  Qed.
+  
+  Lemma cts_on_contour_mult: forall f g gam, 
+    cts_on_contour f gam ->
+    cts_on_contour g gam -> 
+    cts_on_contour (fun z => f z * g z) gam.
+  Proof.
+    move => f g gam ctsf ctsg t tbd.
+    auto_cts.
+  Qed.
+
 
 End Contours.
 
