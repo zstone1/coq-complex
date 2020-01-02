@@ -347,6 +347,40 @@ Proof.
   apply (Rabs_le_between_min_max y x z).
   auto.
 Qed.
+
+Lemma Cmod_opp_real: forall (x y:R), Cmod (x,y) = Cmod (-x,y)%R.
+Proof.
+  move => x y.
+  rewrite /Cmod.
+  f_equal.
+  rewrite /fst /snd -?Rsqr_pow2 -Rsqr_neg //=.
+Qed.
+
+Lemma Cmod_opp_imaginary: forall (x y:R), Cmod (x,y) = Cmod (x,-y)%R.
+Proof.
+  move => x y.
+  rewrite /Cmod.
+  f_equal.
+  rewrite /fst /snd -?Rsqr_pow2 -Rsqr_neg //=.
+Qed.
+
+Lemma Cmod_triangle_inverse: forall z w, (Cmod z - Cmod w)%R <= Cmod (z-w)%C.
+Proof.
+  move => z w.
+  have H: Cmod z <=  Cmod (w) + Cmod (z-w)%C. {
+    apply: Rle_trans.
+    2: apply Cmod_triangle.
+    replace (w + (z-w))%C with z.
+    2: field_simplify; auto.
+    reflexivity.
+  }
+  lra.
+Qed.
+
+  
+
+Definition pos1: posreal := (mkposreal 1 (ltac:(lra))).
+
 End CArith.
 
 Ltac elim_norms := do !
@@ -366,6 +400,22 @@ Ltac elim_norms := do !
          (simpl; field_simplify)
 end.
 
+Lemma sqr_Cmod_bound: forall a z (del: posreal),
+  0 <= a.1 ->
+  0 <= a.2 ->
+  a.1 - del <= z.1 <= a.1 + del -> 
+  a.2 - del <= z.2 <= a.2 + del ->
+  Cmod z <= Cmod (a.1 + del, a.2 + del)%R.
+Proof.
+  move => a z del pos1 pos2 H1 H2.
+  elim_norms.
+  2: nra.
+  2: apply sqrt_pos.
+  rewrite -[x in _ <= x]Rsqr_pow2 Rsqr_sqrt .
+  2: apply Rplus_le_le_0_compat; apply pow2_ge_0.
+  nra.
+Qed.
+
 Ltac unfold_ball := rewrite 
   /ball /= /prod_ball /= /fct_ball /=
   /AbsRing_ball /=.
@@ -384,11 +434,26 @@ Qed.
     They are all equivalent.*)
 Section CTopologies.
 
-Definition ball_sqr := @ball (C_UniformSpace).
-Definition locally_sqr := @locally C_UniformSpace.
-
 Definition ball_circ := @ball (AbsRing_UniformSpace C_AbsRing).
-Definition locally_circ := @locally (AbsRing_UniformSpace C_AbsRing).
+Definition ball_sqr := @ball C_UniformSpace.
+
+Global Instance abs_locally_filter: forall z,
+  Filter (@locally (AbsRing_UniformSpace C_AbsRing) z).
+Proof.
+  move => z.
+  constructor.
+  - apply/locally_C.
+    apply filter_true.
+  - move => P Q /locally_C H1 /locally_C H2.
+    apply/locally_C.
+    apply filter_and; auto.
+  - move => P Q impl /locally_C H.
+    apply: filter_imp.
+    1: apply impl.
+    apply/ locally_C.
+    auto.
+Qed.
+
 
 Lemma ex_RInt_prod: forall f a b,
   @ex_RInt C_R_CompleteNormedModule f a b <->

@@ -14,8 +14,7 @@ Set Bullet Behavior "Strict Subproofs".
 
 
 
-Require Import domains ext_rewrite real_helpers.
-Require Import domains cauchy_riemann path_independence cauchy_integral compact_convergence.
+Require Import helpers complex_core path_independence cauchy_integral compact_convergence.
 
 Lemma Cminus_eq_0: forall z, z - z = 0.
 Proof. move => *. field_simplify_eq; auto. Qed.
@@ -91,7 +90,6 @@ Proof.
     move => z.
     rewrite /extension_C0.
       destruct_match.
-      clear l.
       destruct_match.
       all: apply Mbd; auto.
       all: split; try reflexivity;
@@ -100,6 +98,8 @@ Qed.
 
 Definition contour_inside (g:Contour) D:= 
   forall t, l_end g <= t <= r_end g -> D (gamma g t).
+
+Hint Extern 3 (continuous (gamma' _) _) => apply: cts_derive : teardown_leaf.
 
 Section FilterlimFunc.
 
@@ -138,7 +138,6 @@ Proof.
         rewrite /gamma_bar /gamma_bar2 /extension_C0.
         rewrite -rends -lends.
         destruct_match.
-        clear l.
         destruct_match.
         all: symmetry; apply ext1; auto; split; try reflexivity.
         all: left;apply endpoint_interval.
@@ -204,9 +203,7 @@ Proof.
     apply: ex_RInt_continuous. move => t tbd.
     rewrite Rmin_left in tbd; last by left.
     rewrite Rmax_right in tbd; last by left.
-    apply/continous_C_NormedModule.
-    apply: continuous_mult; last by
-      apply/continous_C_NormedModule; apply: cts_derive; auto.
+    auto_cts.
     apply continuous_comp.
     + rewrite /gamma_bar.
       apply: extension_C0_continuous; simpl; first by left.
@@ -214,16 +211,16 @@ Proof.
       apply: contour_derive; auto.
     + rewrite /gamma_bar extension_C0_ext; simpl.
       2,3: apply tbd.
-      apply/continous_C_NormedModule.
+      apply/cts_topology_2.
       apply cts.
       auto.
   - apply: filterlim_filter_le_2.
-    1: apply global_true.
+    1: apply filter_uniformly_global_local.
     apply: uniformly_bounded_mult.
     move: bounded => [M H].
     exists M =>*;apply H.
     apply: filterlim_filter_le_2.
-    1: apply global_le_local.
+    1: apply filter_locally_le_uniformly.
     auto.
   - move => z [+ /is_RInt_unique ->].
     apply.
@@ -259,7 +256,6 @@ Proof.
     + move => *. 
       rewrite /gamma_bar /extension_C0.
       destruct_match; last apply gam_in_D.
-      clear l.
       destruct_match; apply gam_in_D.
       all: split; try reflexivity; auto; left; auto.
     + move => *. 
@@ -279,23 +275,20 @@ Proof.
       rewrite /gamma_bar /extension_C0.
       have r_eq: gamma_bar (r_end gam) = gamma gam (r_end gam). {
         rewrite /gamma_bar /extension_C0.
-        destruct_match; clear l; try destruct_match.
+        repeat destruct_match.
         1,2: auto.
         simpl in *.
         lra.
       }
       have l_eq: gamma_bar (l_end gam) = gamma gam (l_end gam). {
         rewrite /gamma_bar /extension_C0.
-        destruct_match; clear l; try destruct_match.
+        repeat destruct_match.
         1,3: auto.
         simpl in *.
         lra.
       }
         
-      (destruct_match); simpl in *.
-      move: l => l'.
-      destruct_match;
-      move: l => l''.
+      repeat (destruct_match). 
       * rewrite -(extension_C0_ext _ (l_end gam) (r_end gam)); auto.
       * move: cover => /(_ (r_end gam) (ltac:(lra))).
         rewrite r_eq //=.
@@ -353,72 +346,7 @@ Proof.
   lra.
 Qed.
 
-Global Instance abs_locally_filter: forall z,
-  Filter (@locally (AbsRing_UniformSpace C_AbsRing) z).
-Proof.
-  move => z.
-  constructor.
-  - apply/locally_C.
-    apply filter_true.
-  - move => P Q /locally_C H1 /locally_C H2.
-    apply/locally_C.
-    apply filter_and; auto.
-  - move => P Q impl /locally_C H.
-    apply: filter_imp.
-    1: apply impl.
-    apply/ locally_C.
-    auto.
-Qed.
-
-Lemma Cmod_opp_real: forall (x y:R), Cmod (x,y) = Cmod (-x,y)%R.
-Proof.
-  move => x y.
-  rewrite /Cmod.
-  f_equal.
-  rewrite /fst /snd -?Rsqr_pow2 -Rsqr_neg //=.
-Qed.
-
-Lemma Cmod_opp_imaginary: forall (x y:R), Cmod (x,y) = Cmod (x,-y)%R.
-Proof.
-  move => x y.
-  rewrite /Cmod.
-  f_equal.
-  rewrite /fst /snd -?Rsqr_pow2 -Rsqr_neg //=.
-Qed.
-
-Lemma sqr_Cmod_bound: forall a z (del: posreal),
-  0 <= a.1 ->
-  0 <= a.2 ->
-  a.1 - del <= z.1 <= a.1 + del -> 
-  a.2 - del <= z.2 <= a.2 + del ->
-  Cmod z <= Cmod (a.1 + del, a.2 + del)%R.
-Proof.
-  move => a z del pos1 pos2 H1 H2.
-  elim_norms.
-  2: nra.
-  2: apply sqrt_pos.
-  rewrite -[x in _ <= x]Rsqr_pow2 Rsqr_sqrt .
-  2: apply Rplus_le_le_0_compat; apply pow2_ge_0.
-  nra.
-Qed.
-
-Lemma Cmod_triangle_inverse: forall z w, (Cmod z - Cmod w)%R <= Cmod (z-w).
-Proof.
-  move => z w.
-  have H: Cmod z <=  Cmod (w) + Cmod (z-w). {
-    apply: Rle_trans.
-    2: apply Cmod_triangle.
-    replace (w + (z-w)) with z.
-    2: field_simplify; auto.
-    reflexivity.
-  }
-  lra.
-Qed.
-
-  
-
 Definition pos1: posreal := (mkposreal 1 (ltac:(lra))).
-
 Lemma geometric_compact:
   filterlim (fun (n : nat) (z0 : C) => sum_n (pow_n z0) n) eventually
   (compactly (@ball (AbsRing_UniformSpace C_AbsRing) (0,0) pos1 ) (fun z0 : C => 1 / (1 - z0))).
@@ -529,12 +457,11 @@ Proof.
   1: by apply pow_incr; split; [apply Cmod_ge_0| apply rH].
   rewrite -/eps'.
   move: (nH (S n) (ltac:(auto))).
-  unfold_alg.
+  unfold_ball;unfold_alg.
   rewrite Rabs_pos_eq.
   lra.
   field_simplify.
   rewrite -/(pow _ (S n)).
-  SearchAbout (0 <= _ * _).
   destruct rpos; subst.
   1: left; apply pow_lt; auto.
   rewrite pow_i. 
@@ -544,11 +471,14 @@ Qed.
 
 Lemma Cplus_plus_complete: forall (z w:C_R_CompleteNormedModule), plus z w = z + w.
 Proof.
- unfold_alg.
+  repeat unfold_alg; move => *.
+  simplify_as_R2 RHS.
+  auto.
 Qed.
 Lemma Cplus_plus_C: forall (z w:C), plus z w = z + w.
 Proof.
- unfold_alg.
+  repeat unfold_alg; move => *.
+  auto.
 Qed.
 
 Lemma cts_contour_sum: forall f gam n,
@@ -601,8 +531,6 @@ Proof.
   rewrite sum_Sn Cplus_plus_C.
   auto.
 Qed.
-
-Import Coq.Classes.RelationClasses.
 
 Lemma contour_puncture: forall a (r:posreal) t z,
   @ball (AbsRing_UniformSpace C_AbsRing) a r z -> 
@@ -657,18 +585,7 @@ Proof.
   apply ball_center.
 Qed.
 
-Lemma continuous_Cmult: forall z1 z2, 
-  continuous (fun x => x.1 * x.2) (z1, z2).
-Proof.
-  move => z1 z2.
-  apply/continous_C_NormedModule.
-  apply: continuous_mult;
-  apply/continous_C_NormedModule;
-  auto_continuous_aux.
-Qed.
-
 Definition PCoef := 1/(2*PI* Ci).
-
 
 Theorem holo_analytic : forall (f:C -> C) (r: posreal) D a z, 
   open D ->
@@ -700,18 +617,18 @@ Proof.
     rewrite sum_n_mult_l.
   reflexivity.
   set p := (q in PCoef * q).
-  replace (PCoef * p) with (mult PCoef p ); last unfold_alg.
+  replace (PCoef * p) with (mult PCoef p ); last by unfold_alg.
   apply: filterlim_comp_2.
   1: apply filterlim_const.
   2:{
     apply: filterlim_filter_le_2.
     2: apply: filterlim_filter_le_1.
     3: apply: @filterlim_mult C_AbsRing PCoef p.
-    1: move => *; apply prod_c_topology_eq; auto.
+    1: move => *; apply locally_C; auto.
     move => P [Q R F1 F2 impl].
     apply: Filter_prod .
-    2: apply/prod_c_topology_eq; apply F2.
-    1: apply/prod_c_topology_eq; apply F1.
+    2: apply/locally_C; apply F2.
+    1: apply/locally_C; apply F1.
     auto.
   }
   rewrite /p.
@@ -727,25 +644,16 @@ Proof.
   reflexivity.
   have?: (w-a <> 0) by move => /Cminus_0_eq ?; contradict neq.
   2: {
-    apply: cts_on_contour_mult; first by
-      apply (@holo_ball_contour _ _ _ D).
+    auto_cts_on_contour.
     apply cts_puncture_contour.
     move => w neq.
     have?: (w-a <> 0) by move => /Cminus_0_eq ?; contradict neq.
     apply continuous_comp.
     2: apply continuous_Cinv; apply Cmult_neq_0; auto; apply pow_n_neq_0; auto.
-    apply continuous_comp_2. 
-    3: apply continuous_Cmult.
-    1: rewrite /Cminus.
-    apply continuous_comp_2.
-    1,2: auto_continuous_aux.
-    1: apply: continuous_plus; auto_continuous_aux.
-    apply (@continuous_comp _ _ _ (fun w => w - a) (fun w => pow_n w n)).
-    1: rewrite /Cminus.
-    apply continuous_comp_2.
-    1,2: auto_continuous_aux.
-    1: apply: continuous_plus; auto_continuous_aux.
-    apply pow_n_cts.
+    auto_cts.
+    apply/cts_topology_2.
+    apply: (@continuous_comp _ _ _ (fun w => w - a) (fun w => pow_n w n));
+    auto_cts.
   }
   1:{
     rewrite -pow_n_div /p; auto.
@@ -765,28 +673,15 @@ Proof.
   reflexivity.
   1: {
     move => n.
-    apply cts_on_contour_mult.
-    2: rewrite /Cdiv.
-    2: apply cts_on_contour_mult.
-    2: apply: holo_ball_contour; eauto.
-    2: apply cts_puncture_contour => w neq.
-    2: apply: continuous_comp.
-    3: apply continuous_Cinv.
-    3: apply/Cminus_0_eq; auto.
-    2: rewrite /Cminus.
-    2: apply: continuous_plus; auto_continuous_aux.
+    rewrite {2}/Cdiv.
+    auto_cts_on_contour.
     apply cts_puncture_contour => w neq.
     apply (@continuous_comp _ _ _ (fun w:C => (z-a)/(w - a))%C 
-            (fun w:C => pow_n w n)).
-    2: apply: pow_n_cts.
-    rewrite /Cdiv.
-    apply: continuous_comp_2.
-    2: apply: continuous_comp.
-    4: apply continuous_Cmult.
-    3: apply continuous_Cinv; apply/Cminus_0_eq; auto.
-    2: rewrite /Cminus.
-    2: apply: continuous_plus; auto_continuous_aux.
-    auto_continuous_aux.
+            (fun w:C => pow_n w n));
+    auto_cts.
+    apply/cts_topology_2.
+    apply: continuous_Cinv.
+    apply/ Cminus_0_eq; auto.
   }
   rewrite (@CInt_ext _ (fun w => 1/(1-((z-a)/(w-a))) * (f w /(w-a)))).
   2: {
@@ -805,64 +700,39 @@ Proof.
   }
   pose h := extension_C0 (gamma (circC a r)) 0 (2*PI)%R.
   apply uniform_limits_CInt.
-  all: rewrite -/h.
+  all: rewrite -?/h.
   2:{
     move => n.
-    apply cts_on_contour_mult.
-    2: rewrite /Cdiv; apply cts_on_contour_mult.
-    2: apply: holo_ball_contour; eauto.
-    2: apply cts_puncture_contour=> w neq.
-    2: apply continuous_comp.
-    3: apply continuous_Cinv; apply/Cminus_0_eq; auto.
-    2: rewrite /Cminus.
-    2: apply: continuous_plus; auto_continuous_aux.
-    apply cts_contour_sum.
-    move => m.
+    rewrite {2}/Cdiv.
+    auto_cts_on_contour. 
+    apply cts_contour_sum => m.
     apply: cts_puncture_contour => w neq.
     apply: (@continuous_comp _ _ _ (fun w:C => (z-a)/(w - a))%C 
-            (fun w:C => pow_n w m)).
-    2: apply: pow_n_cts.
-    rewrite /Cdiv.
-    apply: continuous_comp_2.
-    3: apply continuous_Cmult.
-    1: auto_continuous_aux.
-    1: apply: continuous_comp.
-    2: apply continuous_Cinv; apply/Cminus_0_eq; auto.
-    1: rewrite /Cminus.
-    1: apply: continuous_plus; auto_continuous_aux.
+            (fun w:C => pow_n w m)); auto_cts.
+    apply/cts_topology_2; apply: continuous_Cinv; apply/Cminus_0_eq; auto.
   }
   clear p.
   apply: filterlim_filter_le_2.
-  1: apply global_true.
+  1: apply filter_uniformly_global_local.
   apply: uniformly_bounded_mult.
   - destruct (@bounded_continuity (C_AbsRing) (C_NormedModule)
     (fun t => f (a + c_circle r t) / (a + c_circle r t - a)) 0 (2*PI)%R).
     + move => t tbd.
       rewrite -/(continuous _ _).
-      apply continuous_comp_2.
-      3: rewrite /Cdiv; apply: continuous_comp_2. 
-      4: apply continuous_comp.
-      3,4: auto_continuous_aux.
-      3: apply continuous_Cinv; simpl.
-      3: set p := (a + _ -a).
-      3: apply nesym, Cmod_lt_neq.
-      3: rewrite Cmod_0.
-      3: replace p with (c_circle r t).
-      4: rewrite /p; field_simplify; auto.
-      3: rewrite c_circle_norm_2 Rabs_pos_eq; [|left]; apply cond_pos.
-      3: apply continuous_Cmult.
-      1: apply continuous_comp.
-      3: apply: continuous_minus.
-      4: apply continuous_const.
-      1,3: apply: is_derive_continuous;
-         have:= @contour_derive (circC a r) t;
-         apply;
-         simpl; lra.
+      auto_cts.
+      1: apply: continuous_comp.
+      1: auto_cts.
+      1,3: rewrite /c_circle; auto_cts;
+        apply: is_derive_continuous;
+        auto_derive; auto.
+      2: simplify_term (x in _ _ x); apply/cts_topology_2; apply: continuous_Cinv.
+      2: apply nesym, Cmod_lt_neq; rewrite c_circle_norm_2 Cmod_0 Rabs_pos_eq.
+      2: apply cond_pos.
+      2: left; apply cond_pos.
+      apply /cts_topology_2.
       have:= @holo_ball_contour f a r D subset CHolo.
       apply.
       simpl; lra.
-
-
     + have xpos: (0 < x). {
         apply: Rle_lt_trans.
         1: apply: norm_ge_0.
@@ -876,7 +746,7 @@ Proof.
       simpl.
       move => t.
       rewrite /h /extension_C0.
-      destruct_match; clear l;[destruct_match|] => _.
+      repeat destruct_match; move => _.
       * apply (r0 t); split; auto; apply Rgt_2PI_0.
       * apply r0; split; [left; apply Rgt_2PI_0| reflexivity].
       * apply r0; split; [reflexivity | left; apply Rgt_2PI_0].
@@ -890,7 +760,7 @@ Proof.
       rewrite -/(g x').
     reflexivity.
     apply: filterlim_filter_le_2.
-    1: apply: global_le_local.
+    1: apply: filter_locally_le_uniformly.
     rewrite [x in locally x](@functional_extensionality _ _ 
       _ (fun t => (1/(1-g t)))).
     2: move => *; rewrite /g //=.
@@ -916,8 +786,8 @@ Proof.
       apply excluded_middle.
     + move => t tbd.
       rewrite /odisk.
-      unfold_alg.
-      rewrite Copp_0 Cplus_0_r /g/h /Cdiv Cmod_mult.
+      unfold_ball; unfold_alg.
+      rewrite /Cminus Copp_0 Cplus_0_r /g/h /Cdiv Cmod_mult.
       rewrite extension_C0_ext; simpl. 
       2,3:lra.
       set p := (a + _ - a).
@@ -931,19 +801,13 @@ Proof.
       rewrite -Rdiv_lt_1.
       2: apply cond_pos.
       apply aball.
-    + move => t tbd. rewrite /g. 
-      
-      apply: continuous_comp_2.
-      2: apply: continuous_minus.
-      1,3: apply continuous_const.
+    + move => t tbd. rewrite /g /h. 
+      auto_cts.
       1: apply: extension_C0_continuous.
       1: simpl; lra.
       1: move => *; apply: is_derive_continuous; apply contour_derive.
-      simpl in *; lra.
-      rewrite /Cdiv; apply: continuous_comp_2.
-       apply continuous_fst.
-      apply: continuous_comp.
-      apply: continuous_snd.
+      1: simpl in *; lra.
+      apply/cts_topology_2.
       apply: continuous_Cinv.
       simpl.
       rewrite /h extension_C0_ext.
@@ -955,7 +819,6 @@ Proof.
       replace p with (c_circle r t).
       2: rewrite /p; field_simplify; auto.
       rewrite c_circle_norm_2 Rabs_pos_eq; [|left]; apply cond_pos.
-      apply continuous_Cmult.
     + move => cov [sqrs cover].
       exists (fun z => Exists (@^~ z) cov).
       split; first by (
@@ -967,7 +830,7 @@ Proof.
       rewrite /h /extension_C0.
       have r_eq: h 0 = gamma (circC a r) 0. {
         rewrite /h /extension_C0.
-        destruct_match; clear l; try destruct_match.
+        repeat destruct_match.
         1,2: auto.
         simpl in *.
         lra.
@@ -975,19 +838,15 @@ Proof.
       }
       have l_eq: h (2*PI)%R = gamma(circC a r) (2*PI)%R. {
         rewrite /h /extension_C0.
-        destruct_match; clear l; try destruct_match.
+        repeat destruct_match.
         1,3: auto.
         simpl in *.
         lra.
         auto.
       }
       rewrite /g/h/extension_C0.
-        
-      (destruct_match); simpl in *.
-      move: l => l'.
-      destruct_match;
-      move: l => l''.
-      * rewrite -(extension_C0_ext (fun t => a + c_circle r t)  0 (2*PI)%R); auto.
+      repeat destruct_match.
+      * rewrite //= -(extension_C0_ext (fun t => a + c_circle r t)  0 (2*PI)%R); auto.
         apply: cover.
         auto.
       * rewrite -l_eq //=.

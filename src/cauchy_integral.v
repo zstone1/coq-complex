@@ -743,3 +743,18 @@ Proof.
     move => t'; repeat replace_Derive; f_equal; field_simplify_eq; auto.
 Qed.
 End CauchyIntegral.
+
+
+Hint Extern 5 (cts_on_contour _ (circC _ _)) => 
+  (match goal with 
+  | H1: CHolo_on (ball ?a ?r1) ?f
+    |- cts_on_contour ?f (circC ?a ?r2) => 
+    eapply (@cts_on_contour_holo_ball); eauto
+   end) : teardown_leaf.
+    
+Hint Extern 6 (cts_on_contour _ (circC _ _)) => 
+  (match goal with 
+  | H1: CHolo_on ?D ?f
+    |- cts_on_contour ?f (circC ?a ?r2) => 
+    eapply (@holo_ball_contour); eauto
+   end) : teardown_leaf.
