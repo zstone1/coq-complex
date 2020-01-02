@@ -246,6 +246,44 @@ Proof.
 Qed.
 End Homotopy.
 
+ 
+Local Ltac diff_help_ex_derive :=
+  match goal with 
+  | H: differentiable_pt_lim (fun _ _ => ?f _ _) ?x _ _ _
+    |- ex_derive (fun _ => ?f _ _) ?x =>  
+      apply (differentiable_pt_lim_left H)
+  | H: differentiable_pt_lim ?f ?x _ _ _
+    |- ex_derive (fun _ => ?f _ _) ?x =>  
+      apply (differentiable_pt_lim_left H)
+  | H: differentiable_pt_lim ?f ?x _ _ _
+    |- ex_derive (?f _) ?x =>  
+      apply (differentiable_pt_lim_left H)
+
+  | H: differentiable_pt_lim (fun _ _ => ?f _ _) _ ?y _ _
+    |- ex_derive (fun _ => ?f _ _) ?y =>  
+      apply (differentiable_pt_lim_right H)
+  | H: differentiable_pt_lim ?f _ ?y _ _
+    |- ex_derive (fun _ => ?f _ _) ?y =>  
+      apply (differentiable_pt_lim_right H)
+  | H: differentiable_pt_lim ?f _ ?y _ _
+    |- ex_derive (?f _) ?y =>  
+      apply (differentiable_pt_lim_right H)
+  end.
+Local Hint Extern 4 (ex_derive _ _) => (by diff_help_ex_derive) : teardown_leaf.
+Local Hint Extern 2 (differentiable_pt _ _ _)  => 
+  (match goal with 
+  | H: differentiable_pt_lim ?f ?x ?y _ _ |- (differentiable_pt ?f ?x ?y) =>
+    try (now (eexists; eexists; eauto))
+  end) : teardown_leaf.
+
+Local Hint Extern 5 (ex_derive _ _ ) => (
+  match goal with 
+  | H: differentiable_pt ?f ?x ?y |- ex_derive ?g ?y =>  
+     move:H => /differentiable_pt_ex_derive; tauto
+  | H: differentiable_pt ?f ?x ?y |- ex_derive ?g ?x =>  
+     move:H => /differentiable_pt_ex_derive; tauto
+  end
+  ) : teardown_leaf.
 
 Lemma path_independence_part_1: forall
     (u v: R -> R -> R) udx udy vdx vdy
@@ -414,32 +452,6 @@ Qed.
 
 Open Scope C.
 
-Lemma ReImSplit : forall z, 
-  (Re z, Im z) = z.
-Proof.
-  move => z.
-  rewrite /Re /Im /Cplus //=.
-  set p := LHS.
-  simplify_as_R2 LHS.
-  rewrite -surjective_pairing //=.
-Qed.
-  
-Lemma split_cint : forall (f: R -> C) a b, 
-  ex_RInt f a b -> 
-  RInt (V:=C_R_CompleteNormedModule) f a b = 
-  (RInt (compose Re f) a b, RInt (compose Im f) a b).
-Proof.
-  move => f a b [l isR]. 
-  rewrite /Re /Im /compose.
-  apply: is_RInt_unique.
-  apply: is_RInt_fct_extend_pair.
-  - move: isR.
-    copy => /is_RInt_fct_extend_fst /is_RInt_unique ->.
-    apply is_RInt_fct_extend_fst.
-  - move: isR.
-    copy => /is_RInt_fct_extend_snd /is_RInt_unique ->.
-    apply is_RInt_fct_extend_snd.
-Qed.
       
 (* I suspect that the proposition I'm working with 
 are actually decidable anyway, so this is probably overkill*)

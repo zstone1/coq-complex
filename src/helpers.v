@@ -639,6 +639,10 @@ Ltac auto_cts :=
           (apply: continuous_comp)
           (apply: continuous_pair));
  auto with teardown_leaf.
+Open Scope C.
+
+Hint Extern 5 (continuous _ _ ) => 
+  (apply: ex_derive_continuous; eexists; eauto) : teardown_leaf.
 
 Hint Extern 1 (continuous fst _) => (apply: continuous_fst) : teardown_leaf.
 Hint Extern 1 (continuous snd _) => (apply: continuous_snd) : teardown_leaf.
@@ -649,7 +653,6 @@ Hint Extern 5 (continuous _ _) => (apply/cts_topology_2) : teardown_leaf.
 Hint Extern 5 (continuous _ _) => (apply/cts_topology_1) : teardown_leaf. 
 
 
-    
 Lemma RleP : forall x y,
   reflect (x <= y) (Rle_dec x y).
 Proof.
@@ -677,6 +680,7 @@ Ltac copy :=
 (** a bunch of facts I need about 2d differentiation that are missing from
 coquelicot*)
 Section Diff_2d.
+Open Scope R.
 
 (** A stupid issue with the existing proof in Coquelicot.
 they prove Derives = _, but that's not strong enough.
@@ -1020,41 +1024,3 @@ Ltac auto_differentiable_pt :=
   try apply: differentiable_pt_proj1;
   auto with teardown_leaf.
 
-
-Ltac diff_help_ex_derive :=
-  match goal with 
-  | H: differentiable_pt_lim (fun _ _ => ?f _ _) ?x _ _ _
-    |- ex_derive (fun _ => ?f _ _) ?x =>  
-      apply (differentiable_pt_lim_left H)
-  | H: differentiable_pt_lim ?f ?x _ _ _
-    |- ex_derive (fun _ => ?f _ _) ?x =>  
-      apply (differentiable_pt_lim_left H)
-  | H: differentiable_pt_lim ?f ?x _ _ _
-    |- ex_derive (?f _) ?x =>  
-      apply (differentiable_pt_lim_left H)
-
-  | H: differentiable_pt_lim (fun _ _ => ?f _ _) _ ?y _ _
-    |- ex_derive (fun _ => ?f _ _) ?y =>  
-      apply (differentiable_pt_lim_right H)
-  | H: differentiable_pt_lim ?f _ ?y _ _
-    |- ex_derive (fun _ => ?f _ _) ?y =>  
-      apply (differentiable_pt_lim_right H)
-  | H: differentiable_pt_lim ?f _ ?y _ _
-    |- ex_derive (?f _) ?y =>  
-      apply (differentiable_pt_lim_right H)
-  end.
-Hint Extern 4 (ex_derive _ _) => (by diff_help_ex_derive) : teardown_leaf.
-Hint Extern 2 (differentiable_pt _ _ _)  => 
-  (match goal with 
-  | H: differentiable_pt_lim ?f ?x ?y _ _ |- (differentiable_pt ?f ?x ?y) =>
-    try (now (eexists; eexists; eauto))
-  end) : teardown_leaf.
-
-Hint Extern 5 (ex_derive _ _ ) => (
-  match goal with 
-  | H: differentiable_pt ?f ?x ?y |- ex_derive ?g ?y =>  
-     move:H => /differentiable_pt_ex_derive; tauto
-  | H: differentiable_pt ?f ?x ?y |- ex_derive ?g ?x =>  
-     move:H => /differentiable_pt_ex_derive; tauto
-  end
-  ) : teardown_leaf.

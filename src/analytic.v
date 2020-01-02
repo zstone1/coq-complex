@@ -629,20 +629,6 @@ Proof.
   apply ball_center.
 Qed.
 
-Lemma pow_n_neq_0: forall (z:C) n , z <> (0,0) -> pow_n z n <> (0,0).
-Proof.
-  move => z + H.
-  elim.
-  - simpl. 
-    rewrite /one /=.
-    move => /pair_equal_spec [? _].
-    lra.
-  - move => n IH.
-    simpl.
-    rewrite /mult /=.
-    apply Cmult_neq_0; auto.
-Qed.
-
 Lemma pow_n_div: forall (z w:C) n , w <> (0,0) -> 
   pow_n z n /(pow_n w n) = pow_n (z/w) n.
 Proof.

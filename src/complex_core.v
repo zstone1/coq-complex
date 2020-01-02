@@ -15,6 +15,7 @@ Require Import helpers.
 
 
 Section PathConnected .
+  Open Scope R.
   Program Definition path_connected {T: UniformSpace} (D: T -> Prop) := 
     forall x y : T,
     D x ->
@@ -91,6 +92,7 @@ Open Scope fun_scope.
 Definition NtoC (n: nat) := RtoC (INR n).
 
 Section Domain.
+  Open Scope R.
               
   Record Domain (D:C -> Prop) := dom {
     open_dom: open D;
@@ -981,6 +983,52 @@ Ltac auto_CHolo_on :=
           (fail "no CHolo for pairs"));
  auto with teardown_leaf.
 
+Open Scope C.
+
+Lemma pow_n_abs_C : forall (z:C) n, Cmod (pow_n z n)%C = (pow_n (Cmod z) n).
+Proof.
+  move => z.
+  elim.
+  - simpl. apply Cmod_1.
+  - move => n IH //=. 
+    rewrite Cmod_mult IH //=.
+Qed.
+
+
+Lemma pow_n_cts : forall z n, continuous (fun z:C => pow_n z n) z.
+Proof.
+  move => z.
+  elim.
+  - simpl; auto_cts. 
+  - move => n IH //=. 
+    apply/cts_topology_1.
+    apply/cts_topology_2.
+    apply: continuous_mult; auto_cts.
+Qed.
+
+Lemma pow_n_neq_0: forall (z:C) n , z <> (0,0) -> pow_n z n <> (0,0).
+Proof.
+  move => z + H.
+  elim.
+  - simpl. 
+    rewrite /one /=.
+    move => /pair_equal_spec [? _].
+    lra.
+  - move => n IH.
+    simpl.
+    rewrite /mult /=.
+    apply Cmult_neq_0; auto.
+Qed.
+
+
+Hint Extern 5 (continuous _ _ ) => 
+  (apply: ex_derive_continuous; eexists; eauto) : teardown_leaf.
+
+Hint Extern 2 (continuous (fun _ => pow_n _ ?n) _ ) => 
+  apply: (@continuous_comp _ _ _ _ (fun z:C => pow_n z n)) :teardown_leaf.
+
+Hint Extern 2 (continuous (pow_n ^~ _) _ ) => 
+  (apply: pow_n_cts): teardown_leaf.
 
 Section Contours.
   Open Scope C.
@@ -1071,6 +1119,28 @@ Section Contours.
 
   Definition cts_on_contour (f: C -> C) g := 
     forall t, l_end g <= t <= r_end g -> continuous f (gamma g t).
+
+  Lemma cts_on_contour_mult: forall f g gam, 
+    cts_on_contour f gam ->
+    cts_on_contour g gam -> 
+    cts_on_contour (fun z => f z * g z) gam.
+  Proof. move => *??; auto_cts. Qed.
+
+  Lemma cts_on_contour_plus: forall f g gam,
+    cts_on_contour f gam ->
+    cts_on_contour g gam -> 
+    cts_on_contour (fun z => f z + g z) gam.
+  Proof. move => *??; auto_cts. Qed.
+  Lemma cts_on_contour_minus: forall f g gam,
+    cts_on_contour f gam ->
+    cts_on_contour g gam -> 
+    cts_on_contour (fun z => f z - g z) gam.
+  Proof. move => *??; auto_cts. Qed.
+
+  Lemma cts_on_contour_opp: forall f gam,
+    cts_on_contour f gam ->
+    cts_on_contour (fun z => - f z) gam.
+  Proof. move => *??; auto_cts. Qed.
   
   Lemma ex_CInt_RInt: forall f g, 
     ex_RInt (fun t => f (gamma g t) * (gamma' g t)) (l_end g) (r_end g) <-> 
@@ -1080,7 +1150,33 @@ Section Contours.
     move => [l H]; exists l; apply H.
   Qed.
   
-  Lemma cts_CInt: forall (f: C -> C) g, 
+  Lemma ReImSplit : forall z, 
+    (Re z, Im z) = z.
+  Proof.
+    move => z.
+    rewrite /Re /Im /Cplus //=.
+    set p := LHS.
+    simplify_as_R2 LHS.
+    rewrite -surjective_pairing //=.
+  Qed.
+    
+  Lemma split_cint : forall (f: R -> C) a b, 
+    ex_RInt f a b -> 
+    RInt (V:=C_R_CompleteNormedModule) f a b = 
+    (RInt (compose Re f) a b, RInt (compose Im f) a b).
+  Proof.
+    move => f a b [l isR]. 
+    rewrite /Re /Im /compose.
+    apply: is_RInt_unique.
+    apply: is_RInt_fct_extend_pair.
+    - move: isR.
+      copy => /is_RInt_fct_extend_fst /is_RInt_unique ->.
+      apply is_RInt_fct_extend_fst.
+    - move: isR.
+      copy => /is_RInt_fct_extend_snd /is_RInt_unique ->.
+      apply is_RInt_fct_extend_snd.
+  Qed.
+    Lemma cts_CInt: forall (f: C -> C) g, 
     cts_on_contour f g -> ex_CInt g f.
   Proof.
     move => f g cts.
@@ -1097,28 +1193,175 @@ Section Contours.
     apply: continuous_comp;
     auto_cts.
   Qed.
+  Lemma CInt_ext : forall f g gam, 
+    (forall t, l_end gam <= t <= r_end gam -> f (gamma gam t) = g (gamma gam t)) ->
+    CInt (gam) f = CInt (gam) g.
+  Proof.
+    move => f g gam ext.
+    rewrite /CInt.
+    under RInt_ext => t tbd.
+     rewrite ext.
+    over.
+    2: auto.
+    rewrite Rmin_left in tbd.
+    rewrite Rmax_right in tbd.
+    lra.
+    all: left; apply endpoint_interval.
+  Qed.
   
-  Lemma div_z_continuous_contour: forall a (r: posreal) , 
+  Lemma CInt_ext_global : forall f g gam, 
+    (forall z,  f z = g z) ->
+    CInt (gam) f = CInt (gam) g.
+  Proof.
+    move => f g gam ext.
+    under CInt_ext => t _ do rewrite ext.
+    auto.
+  Qed.
+  
+  Lemma CInt_plus : forall f g gam,
+    cts_on_contour g gam -> 
+    cts_on_contour f gam -> 
+    CInt (gam) (fun z => f z + g z) = 
+    CInt (gam) f + CInt ( gam) g.
+  Proof.
+    move => f g ctsf ctsg gam.
+    rewrite /CInt.
+    under RInt_ext => t _ do rewrite Cmult_plus_distr_r.
+    rewrite RInt_plus; first by [];
+    apply ex_CInt_RInt, cts_CInt; auto.
+  Qed.
+  
+  Lemma CInt_mult_Ci : forall f gam,
+    cts_on_contour f gam -> 
+    CInt (gam) (fun z => Ci * f z) = 
+    Ci * CInt (gam) f .
+  Proof.
+    move => f gam ctsf.
+    rewrite /CInt split_cint /compose //=.
+    under RInt_ext => t tbd do field_simplify.
+    under [x in (_,x)]RInt_ext => t tbd do field_simplify.
+  
+    rewrite split_cint.
+    simplify_as_R2 RHS.
+    symmetry.
+    rewrite /compose.
+    simpl.
+    f_equal.
+    set p := (x in Ropp x).
+    replace (-p)%R with (opp p); last by unfold_alg.
+    rewrite /p.
+    rewrite -RInt_opp.
+    under RInt_ext => t _. 
+      unfold_alg.
+      field_simplify.
+    over.
+    auto.
+    - apply ex_RInt_continuous => t tbd.
+      rewrite Rmin_left in tbd; last (by left; apply endpoint_interval);
+      rewrite Rmax_right in tbd; last (by left; apply endpoint_interval).
+      auto_cts; apply continuous_comp; auto_cts.
+      2,4: apply: cts_derive; auto.
+      all: apply continuous_comp; auto_cts.
+      all: apply: ex_derive_continuous; eexists; apply contour_derive; auto.
+    - apply/ ex_CInt_RInt.
+      apply: cts_CInt .
+      auto.
+    - apply (@ex_CInt_RInt (fun z => Ci * f z)).
+      apply: cts_CInt .
+      apply cts_on_contour_mult; last by auto.
+      move => *. apply continuous_const.
+  Qed.
+  
+  Lemma ReImSplit_plus : forall z, 
+    z = Re z + Ci * Im z.
+  Proof.
+    move => z.
+    rewrite /Re /Ci/Im /Cmult.
+    simpl.
+    simplify_as_R2 RHS. 
+    rewrite -surjective_pairing.
+    auto.
+  Qed.
+  
+  Lemma CInt_mult : forall f k gam,
+    cts_on_contour f gam -> 
+    CInt (gam) (fun z => k * f z) = 
+    k * CInt (gam) f .
+  Proof.
+    move => f k gam cstf.
+    rewrite (@ReImSplit_plus k).
+    under CInt_ext_global => t do
+      rewrite Cmult_plus_distr_r .
+    rewrite CInt_plus. 
+    2-3 : by
+      apply: cts_on_contour_mult; last by [];
+      move => *; apply: continuous_const.
+    rewrite {1}/CInt. 
+    under RInt_ext => t _ do
+      rewrite -Cmult_assoc -scal_R_Cmult.
+    rewrite RInt_scal; last by 
+      apply/ ex_CInt_RInt;
+      apply: cts_CInt .
+    rewrite scal_R_Cmult.
+    rewrite [RHS]Cmult_plus_distr_r.
+    rewrite -/(CInt _).
+    f_equal.
+    rewrite {1}/CInt. 
+    under RInt_ext => t _.
+      set p := _ * _ * _ * _.
+      replace p with (Im k * (Ci * f (gamma gam t) * gamma' gam t )); last by
+        rewrite /p; field_simplify.
+      rewrite -scal_R_Cmult.
+    over.
+    rewrite RInt_scal.
+    - rewrite scal_R_Cmult.
+      rewrite -/(CInt _ (fun z => Ci * f z)).
+      rewrite CInt_mult_Ci; last by [].
+      field_simplify.
+      auto.
+    - apply (@ex_CInt_RInt (fun z => Ci * f z)).
+      apply cts_CInt .
+      apply cts_on_contour_mult; last by [].
+      move => *. apply continuous_const.
+  Qed.
+  
+  Lemma div_continuous_circle: forall a (r: posreal) , 
     cts_on_contour (fun q : C => Cinv (q - a)) (circC a r).
   Proof.
-    move => a r.
-    move => t tbd; simpl in *.
+    move => a r t tbd; simpl in *.
     have ?:= cond_pos r.
     auto_cts.
     simple apply continuous_Cinv.
     simplify_as_R2 (x in x <> _).
     rewrite Cmod_gt_0 c_circle_norm Rabs_pos_eq; nra.
   Qed.
-  
-  Lemma cts_on_contour_mult: forall f g gam, 
-    cts_on_contour f gam ->
-    cts_on_contour g gam -> 
-    cts_on_contour (fun z => f z * g z) gam.
+  Lemma div_pow_continuous_circle: forall a (r: posreal) n , 
+    cts_on_contour (fun q : C => Cinv (pow_n (q - a) n)) (circC a r).
   Proof.
-    move => f g gam ctsf ctsg t tbd.
+    move => a r n t tbd; simpl in *.
+    have ?:= cond_pos r.
     auto_cts.
+    1: apply: (@continuous_comp _ _ _ _ (fun z:C => pow_n z n)); auto_cts.
+    apply: continuous_Cinv.
+    apply: pow_n_neq_0. 
+    simplify_as_R2 (x in x <> _).
+    rewrite Cmod_gt_0 c_circle_norm Rabs_pos_eq; nra.
   Qed.
 
-
 End Contours.
+
+Ltac auto_cts_on_contour := 
+  repeat (teardown 
+    (fail "no topology stuff here")
+    (apply: cts_on_contour_plus)
+    (unfold_alg; apply: cts_on_contour_mult)
+    (apply: cts_on_contour_mult)
+    (apply: cts_on_contour_minus)
+    (apply: cts_on_contour_opp)
+    (try (apply: div_continuous_circle); 
+     try (apply: div_pow_continuous_circle))
+    (fail "no cts_on_contour for pairs"));
+ auto with teardown_leaf.
+
+  
 

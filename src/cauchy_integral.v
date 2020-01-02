@@ -181,7 +181,7 @@ Proof.
   Unshelve.
   apply/(@ex_CInt_RInt (fun q =>/ (q - a)) _).
   apply cts_CInt.
-  apply: div_z_continuous_contour.
+  auto_cts_on_contour.
 Qed.
 
 Lemma squeeze: forall {K: AbsRing} {T: NormedModule K} (x:T),
@@ -260,31 +260,65 @@ Proof.
   - have ?:= PI_RGT_0; lra.
 Qed.
 
-Open Scope C.
+Hint Extern 0 (cts_on_contour (fun => _) _) => 
+  (move => ??; apply: continuous_const) : teardown_leaf.   
 
-Lemma pow_n_abs_C : forall (z:C) n, Cmod (pow_n z n)%C = (pow_n (Cmod z) n).
+Lemma cts_on_contour_holo_ball: forall f a (r1 r2:posreal),
+  CHolo_on (ball a r1) f ->
+  r2 < r1 ->
+
+  cts_on_contour f (circC a r2).
 Proof.
-  move => z.
-  elim.
-  - simpl. apply Cmod_1.
-  - move => n IH //=. 
-    rewrite Cmod_mult IH //=.
+   move => f a r1 r2 holo ???.
+   apply/cts_topology_1.
+   apply: ex_derive_continuous. 
+   move: holo => [f' holo].
+   eexists.
+   apply holo.
+   unfold_alg.
+   unfold_ball.
+   rewrite /abs /= /opp /= /minus /= /plus /opp /=.
+   simplify_term (x in Cmod x).
+   simplify_as_R2 (x in Cmod x).
+   rewrite c_circle_norm_2.
+   rewrite Rabs_pos_eq.
+   + auto. 
+   + left; apply cond_pos.
 Qed.
 
-
-Lemma pow_n_cts : forall z n, continuous (fun z:C => pow_n z n) z.
+Lemma holo_ball_contour: forall f a (r: posreal) D,
+  (forall w, Cmod (a - w) <= r -> D w) ->
+  CHolo_on D f ->
+  cts_on_contour f (circC a r).
 Proof.
-  move => z.
-  elim.
-  - simpl; auto_cts. 
-  - move => n IH //=. 
-    apply/cts_topology_1.
-    apply/cts_topology_2.
-    apply: continuous_mult; auto_cts.
+  move => f a r D subset [f' holo] t tbd.
+  apply/cts_topology_1.
+  apply: ex_derive_continuous.
+  exists (f' (gamma (circC a r) t)).
+  apply holo.
+  apply subset.
+  unfold_alg.
+  simplify_term (x in Cmod x).
+  rewrite Cmod_opp c_circle_norm_2 Rabs_pos_eq.
+  reflexivity.
+  left.
+  apply cond_pos.
 Qed.
 
-Hint Extern 5 (continuous _ _ ) => 
-  (apply: ex_derive_continuous; eexists; eauto) : teardown_leaf.
+Hint Extern 5 (cts_on_contour _ (circC _ _)) => 
+  (match goal with 
+  | H1: CHolo_on (ball ?a ?r1) ?f
+    |- cts_on_contour ?f (circC ?a ?r2) => 
+    eapply (@cts_on_contour_holo_ball); eauto
+   end) : teardown_leaf.
+    
+Hint Extern 6 (cts_on_contour _ (circC _ _)) => 
+  (match goal with 
+  | H1: CHolo_on ?D ?f
+    |- cts_on_contour ?f (circC ?a ?r2) => 
+    eapply (@holo_ball_contour); eauto
+   end) : teardown_leaf.
+
 
 Lemma cauchy_integral_aux: forall f (r eps: posreal) a,
   CHolo_on (ball a r) f ->
@@ -324,57 +358,17 @@ Proof.
 
   `Begin Rle p. {rewrite /p.
   
-  |  {(  scal ((eps/(2*PI))/(del2^m )%R) _ )%R} apply: CInt_abs_bound .
-    {
-      auto_cts.
-      apply/continous_C_AbsRing.
-      apply: continuous_mult.
-      - apply: continuous_minus; last by auto_continuous_aux.
-        eapply filterlim_filter_le_1.
-        2: apply: ex_derive_continuous. 
-        1: move => P; apply prod_c_topology_eq.
-        move: holo => [f' holo].
-        exists (f' (gamma (circC a del2) z)).
-        apply/diff_topology_change .
-        apply holo.
-        unfold_alg.
-        set q := (x in Cmod x).
-        simplify_as_R2 e q.
-        rewrite c_circle_norm.
-        rewrite Rabs_pos_eq.
-        + eapply Rle_lt_trans; first apply Rmin_r.
-          lra.
-        + left; 
-          apply Rmin_pos; try lra.
-      - apply /continous_C_AbsRing.
-        apply: continuous_comp; first  
-          (apply: (@continuous_comp _ _ _ _ (fun z:C => pow_n z m));
-          [repeat auto_continuous_aux| apply pow_n_cts ]).
-        apply: continuous_Cinv.
-        simpl => H.
-        set q := (_ + c_circle _ _ - _) in H.
-        have: (Cmod (pow_n q (S n)) = 0) by
-          rewrite -Cmod_0; f_equal.
-        move {H}.
-        simplify_as_R2 e q.
-        rewrite pow_n_abs_C c_circle_norm.
-        move => H. 
-        contradict H.
-        apply Rlt_0_neq_0.
-        rewrite Rabs_pos_eq.
-        2: left; apply: Rmin_pos; lra.
-        rewrite pow_n_pow.
-        apply: pow_lt.
-        apply: cond_pos del2.
-  }
+  |  {(  scal ((eps/(2*PI))/(del2^m )%R) _ )%R} 
+      apply: CInt_abs_bound;
+      rewrite /Cdiv;
+      auto_cts_on_contour.
   {
     move => t tbd.
     rewrite (@lock _ m).
     unfold_alg.
     rewrite Cmod_div;
-    set q := a + _ - a;
-    simplify_as_R2 e q.
-    - rewrite pow_n_abs_C  ?c_circle_norm.
+    simplify_term (a + _ - a).
+    - rewrite pow_n_abs_C  ?c_circle_norm_2.
       rewrite Rabs_pos_eq; last by left.
       apply Rmult_le_compat_r; first by (
         left;
@@ -383,15 +377,14 @@ Proof.
         apply Rinv_0_lt_compat).
       left.
       apply h.
-      unfold_alg.
-      set q := a + _ + _.
-      simplify_as_R2 e q.
-      rewrite c_circle_norm.
+      unfold_ball; unfold_alg.
+      simplify_term (a + _ - _) .
+      rewrite c_circle_norm_2.
       rewrite Rabs_pos_eq; last by left.
       eapply Rle_lt_trans; first apply Rmin_l.
       lra.
     - apply/ Cmod_gt_0.
-      rewrite pow_n_abs_C c_circle_norm.
+      rewrite pow_n_abs_C c_circle_norm_2.
       rewrite Rabs_pos_eq; last by left.
       apply pow_lt.
       apply Rmin_pos; lra.
@@ -428,163 +421,6 @@ Proof.
     apply: Rlt_0_neq_0. apply: pow_lt; lra.
 Qed.
 
-Lemma CInt_ext : forall f g gam, 
-  (forall t, l_end gam <= t <= r_end gam -> f (gamma gam t) = g (gamma gam t)) ->
-  CInt (gam) f = CInt (gam) g.
-Proof.
-  move => f g gam ext.
-  rewrite /CInt.
-  under RInt_ext => t tbd.
-   rewrite ext.
-  over.
-  2: auto.
-  rewrite Rmin_left in tbd.
-  rewrite Rmax_right in tbd.
-  lra.
-  all: left; apply endpoint_interval.
-Qed.
-
-Lemma CInt_ext_global : forall f g gam, 
-  (forall z,  f z = g z) ->
-  CInt (gam) f = CInt (gam) g.
-Proof.
-  move => f g gam ext.
-  under CInt_ext => t _ do rewrite ext.
-  auto.
-Qed.
-
-Lemma CInt_plus : forall f g gam,
-  cts_on_contour g gam -> 
-  cts_on_contour f gam -> 
-  CInt (gam) (fun z => f z + g z) = 
-  CInt (gam) f + CInt ( gam) g.
-Proof.
-  move => f g ctsf ctsg gam.
-  rewrite /CInt.
-  under RInt_ext => t _ do rewrite Cmult_plus_distr_r.
-  rewrite RInt_plus; first by [];
-  apply ex_CInt_RInt, cts_CInt; auto.
-Qed.
-
-Lemma CInt_mult_Ci : forall f gam,
-  cts_on_contour f gam -> 
-  CInt (gam) (fun z => Ci * f z) = 
-  Ci * CInt (gam) f .
-Proof.
-  move => f gam ctsf.
-  rewrite /CInt split_cint /compose //=.
-  under RInt_ext => t tbd do field_simplify.
-  under [x in (_,x)]RInt_ext => t tbd do field_simplify.
-
-  rewrite split_cint.
-  set p := RHS.
-  simplify_as_R2 e p.
-  symmetry.
-  rewrite /compose.
-  simpl.
-  f_equal.
-  set p := (x in Ropp x).
-  replace (-p)%R with (opp p); last by unfold_alg.
-  rewrite /p.
-  rewrite -RInt_opp.
-  under RInt_ext => t _. 
-    unfold_alg.
-    field_simplify.
-  over.
-  auto.
-  - apply ex_RInt_continuous => t tbd.
-    rewrite Rmin_left in tbd.
-    rewrite Rmax_right in tbd.
-    2-3: left; apply endpoint_interval.
-    repeat auto_continuous_aux; apply continuous_comp;
-    try auto_continuous_aux.
-    1,3: apply continuous_comp; last by apply ctsf.
-    3,4: by apply cts_derive.
-    1,2: apply: ex_derive_continuous; eexists; apply contour_derive; auto.
-  - apply/ ex_CInt_RInt.
-    apply: cts_CInt .
-    auto.
-  - apply (@ex_CInt_RInt (fun z => Ci * f z)).
-    apply: cts_CInt .
-    apply cts_on_contour_mult; last by auto.
-    move => *. apply continuous_const.
-Qed.
-
-Lemma ReImSplit_plus : forall z, 
-  z = Re z + Ci * Im z.
-Proof.
-  move => z.
-  rewrite /Re /Ci/Im /Cmult.
-  simpl.
-  set p := RHS.
-  simplify_as_R2 e p.
-  rewrite -surjective_pairing.
-  auto.
-Qed.
-
-Lemma CInt_mult : forall f k gam,
-  cts_on_contour f gam -> 
-  CInt (gam) (fun z => k * f z) = 
-  k * CInt (gam) f .
-Proof.
-  move => f k gam cstf.
-  rewrite (@ReImSplit_plus k).
-  under CInt_ext_global => t do
-    rewrite Cmult_plus_distr_r .
-  rewrite CInt_plus. 
-  2-3 : by
-    apply: cts_on_contour_mult; last by [];
-    move => *; apply: continuous_const.
-  rewrite {1}/CInt. 
-  under RInt_ext => t _ do
-    rewrite -Cmult_assoc -scal_R_Cmult.
-  rewrite RInt_scal; last by 
-    apply/ ex_CInt_RInt;
-    apply: cts_CInt .
-  rewrite scal_R_Cmult.
-  rewrite [RHS]Cmult_plus_distr_r.
-  rewrite -/(CInt _).
-  f_equal.
-  rewrite {1}/CInt. 
-  under RInt_ext => t _.
-    set p := _ * _ * _ * _.
-    replace p with (Im k * (Ci * f (gamma gam t) * gamma' gam t )); last by
-      rewrite /p; field_simplify.
-    rewrite -scal_R_Cmult.
-  over.
-  rewrite RInt_scal.
-  - rewrite scal_R_Cmult.
-    rewrite -/(CInt _ (fun z => Ci * f z)).
-    rewrite CInt_mult_Ci; last by [].
-    field_simplify.
-    auto.
-  - apply (@ex_CInt_RInt (fun z => Ci * f z)).
-    apply cts_CInt .
-    apply cts_on_contour_mult; last by [].
-    move => *. apply continuous_const.
-Qed.
-
-Lemma holo_ball_contour: forall f a (r: posreal) D,
-  (forall w, Cmod (a - w) <= r -> D w) ->
-  CHolo_on D f ->
-  cts_on_contour f (circC a r).
-Proof.
-  move => f a r D subset [f' holo] t tbd.
-  apply/continous_C_AbsRing_1.
-  apply: ex_derive_continuous.
-  exists (f' (gamma (circC a r) t)).
-  apply holo.
-  apply subset.
-  unfold_alg.
-  
-  set p := (x in Cmod x).
-  replace p with (-c_circle r t); last by
-    rewrite /p; field_simplify.
-  rewrite Cmod_opp c_circle_norm_2 Rabs_pos_eq.
-  reflexivity.
-  left.
-  apply cond_pos.
-Qed.
 
 Lemma Cmod_sym: forall z w, 
   Cmod( z-w) = Cmod (w - z).
@@ -614,7 +450,7 @@ Lemma open_neq_C: forall a,
   open (fun z:C => z <> a).
 Proof.
   move => a z neq.
-  apply/prod_c_topology_eq.
+  apply/locally_C.
   have := Cmod_ge_0 (z-a).
   case. 
   - move => H.
@@ -624,7 +460,7 @@ Proof.
     move => H'.
     subst.
     move: xball.
-    unfold_alg.
+    unfold_ball;unfold_alg.
     rewrite -/(Cminus _ _) Cmod_sym.
     lra.
   - move => H'. 
@@ -657,17 +493,10 @@ Proof.
               -?/(Cdiv _ _)  -?/(Cminus _ _) .
  | {( CInt _  (fun z : C => (f z)/(z-a)) 
     + CInt _  (fun z : C => -(f a)/(z-a)) 
-   )} rewrite CInt_plus.
-   
-   1,2: apply cts_on_contour_mult.
-   1: move => *; apply continuous_const.
-   1,3: apply: div_z_continuous_contour.
-   1: apply: holo_ball_contour; eauto.
+   )} rewrite CInt_plus; rewrite /Cdiv; auto_cts_on_contour.
 
  | {( _ + (-f(a)) * CInt _  (fun z : C => /(z-a)))} 
-   f_equal; rewrite CInt_mult .
-
-   1: apply: div_z_continuous_contour.
+   f_equal; rewrite CInt_mult; rewrite /Cdiv ;auto_cts_on_contour.
 
  | {( _ + (-f(a)) * (2*PI*Ci) )} idtac.
    f_equal;f_equal; apply integral_div_z.
@@ -685,56 +514,43 @@ Proof.
    field_simplify_eq.   
    rewrite -[RHS]Cplus_0_l.
    f_equal.
-  apply: squeeze_le => eps.
-  have := @cauchy_integral_aux f r eps a.
-  case. {
-    apply: CHolo_subset; last eauto.
-    move => z zball.
-    apply subset.
-    left.
-    rewrite Cmod_sym.
-    apply zball.
-  }
-  move => del /(_ 0)%nat [delbd H].
-  rewrite //= Rmult_1_l in H.
-  apply: Rle_trans; last by apply H.
-  right.
-  f_equal.
-  symmetry.
-  under CInt_ext_global => t do rewrite mult_one_r.  
-  pose D' := fun z => z<> a /\ D z.
-  apply (@circ_independence _ _ _ _ D').
-  1: left; apply cond_pos.
-  1: apply open_and.
-  2: auto.
-  1: apply open_neq_C.
-  1: auto.
-  move => w bd. 
-  have ?:= cond_pos del.
-  split; last (apply subset; lra).
-  move => ?; subst.
-  move: bd.
-  rewrite /Cminus Cplus_opp_r Cmod_0.
-  lra.
-
-  rewrite /Cdiv.
-  apply CHolo_on_mult.
-  {
-    apply CHolo_on_minus; last by apply CHolo_on_const.
-    apply: CHolo_subset; last by apply holo.
-    move => z.
-    rewrite /D'.
-    tauto.
-  }
-  {
-    apply: CHolo_on_div; first apply: CHolo_on_minus.
-    - apply CHolo_on_id.
-    - apply CHolo_on_const.
-    - move => z [H' _]Q.
-      contradict H'.
-      apply/Cminus_0_eq.
-      auto.
-  }
+   apply: squeeze_le => eps.
+   have := @cauchy_integral_aux f r eps a.
+   case. {
+      apply: CHolo_subset; last eauto.
+      move => z zball.
+      apply subset.
+      left.
+      rewrite Cmod_sym.
+      apply zball.
+    }
+    move => del /(_ 0)%nat [delbd H].
+    rewrite //= Rmult_1_l in H.
+    apply: Rle_trans; last by apply H.
+    right.
+    f_equal.
+    symmetry.
+    under CInt_ext_global => t do rewrite mult_one_r.  
+    pose D' := fun z => z<> a /\ D z.
+    apply (@circ_independence _ _ _ _ D').
+    1: left; apply cond_pos.
+    1: apply open_and.
+    2: auto.
+    1: apply open_neq_C.
+    1: auto.
+    move => w bd. 
+    have ?:= cond_pos del.
+    split; last (apply subset; lra).
+    move => ?; subst.
+    move: bd.
+    rewrite /Cminus Cplus_opp_r Cmod_0.
+    lra.
+  
+    Hint Immediate CHolo_on_id : teardown_leaf.
+    Hint Immediate CHolo_on_const : teardown_leaf.
+    auto_CHolo_on.
+    apply: CHolo_subset;last eauto; rewrite /D'; move => *; tauto.
+    rewrite /D'; move => *. rewrite Cminus_0_eq; tauto.
   - field_simplify_eq; first by auto.
     repeat split; move => Q; inversion Q; try lra.
     have:= PI_RGT_0.
@@ -770,7 +586,7 @@ Proof.
   pose delr' := (r - (Cmod (z -a)%C))%R.
   have delrpos: 0 < delr'. {
     move: zball.
-    unfold_alg.
+    unfold_ball;unfold_alg.
     rewrite -/(Cminus _ _).
     rewrite /delr'.
     lra.
@@ -782,7 +598,7 @@ Proof.
   }
 
   rewrite -[RHS](@cauchy_integral_formula_center f (delr) D z); simpl.
-  2: move => *; apply prod_c_topology_eq; apply openD; auto.
+  2: move => *; apply locally_C; apply openD; auto.
   2: { 
     move => w H. 
     apply subset.
@@ -813,10 +629,8 @@ Proof.
     rewrite dg_eq2.
   over.
   rewrite /c_circle /h1 /h2.
-  set p := RHS.
-  simplify_as_R2 e p.
-  set p := LHS.
-  simplify_as_R2 e p.
+  simplify_as_R2 LHS.
+  simplify_as_R2 RHS.
   auto.
   symmetry.
   under RInt_ext.
@@ -825,28 +639,15 @@ Proof.
     rewrite dg_eq1.
   over.
   rewrite /c_circle /h1 /h2.
-  set p := RHS.
-  simplify_as_R2 e p.
-  set p := LHS.
-  simplify_as_R2 e p.
+  simplify_as_R2 LHS.
+  simplify_as_R2 RHS.
   auto.
   symmetry.
   pose D' := fun w => w <> z /\ D w.
   have : CHolo_on D' (fun w : C => f w / (w - z)). {
-    rewrite /Cdiv.
-    apply: @CHolo_on_mult .
-    - apply: CHolo_subset.
-      2: apply holo.
-      rewrite /D'.
-      tauto.
-    - apply: CHolo_on_div.
-      apply CHolo_on_minus.
-      apply CHolo_on_id.
-      apply CHolo_on_const.
-      rewrite /D'.
-      move => w [wneqz _].
-      rewrite Cminus_0_eq.
-      auto.
+    auto_CHolo_on.
+    apply: CHolo_subset;last eauto; rewrite /D'; move => *; tauto.
+    rewrite /D'; move => *. rewrite Cminus_0_eq; tauto.
   }
   move => [fz' holo_fz].
   apply : (@path_independence_loop
@@ -864,17 +665,15 @@ Proof.
     1: apply open_and.
     3: split.
     + apply open_neq_C.
-    + move => *; apply/prod_c_topology_eq; apply: openD; auto.
+    + move => *; apply/locally_C; apply: openD; auto.
     + rewrite /h1/h2. 
       move => /Cminus_0_eq.
       set p := (y in y = _).
       replace p with ((x * ((z - a) + c_circle (delr' -r) t)) + 
                       (a - z) + c_circle r t ); last by (
         rewrite /p;
-        set u := RHS;
-        simplify_as_R2 e u;
-        set v := LHS;
-        simplify_as_R2 e v).
+        simplify_as_R2 RHS;
+        simplify_as_R2 LHS; f_equal).
       clear p.
       rewrite Cplus_comm.
       set p := (_ * _ + _).
@@ -882,10 +681,8 @@ Proof.
          -(x * ((a - z) + c_circle (Cmod(a-z)) t) - (a-z))
                        ); last (
         rewrite /p /delr' Cmod_sym;
-        set u := RHS;
-        simplify_as_R2 e u;
-        set v := LHS;
-        simplify_as_R2 e v;
+        simplify_as_R2 RHS;
+        simplify_as_R2 LHS;
         f_equal; field_simplify; auto).
       move =>/Cminus_0_eq /esym.
       apply: Cmod_lt_neq.
@@ -906,7 +703,7 @@ Proof.
       }
       2: lra.
       move: zball.
-      unfold_alg.
+      unfold_ball; unfold_alg.
       rewrite -/(Cminus _ _).
       lra.
     + apply subset.
@@ -916,10 +713,8 @@ Proof.
         (c_circle (x*Cmod (z-a) - r) t) ); last by (
 
         rewrite /p /delr' Cmod_sym;
-        set u := RHS;
-        simplify_as_R2 e u;
-        set v := LHS;
-        simplify_as_R2 e v;
+        simplify_as_R2 RHS;
+        simplify_as_R2 LHS;
         f_equal; field_simplify; auto).
       apply: Rle_trans; first apply Cmod_triangle.
       rewrite c_circle_norm_2 Rabs_minus_sym Rabs_pos_eq.
@@ -933,49 +728,18 @@ Proof.
         1: apply Cmod_ge_0.
         left. 
         move: zball.
-        unfold_alg.
-        rewrite -/(Cminus _ _).
+        unfold_ball; unfold_alg.
         lra.
     + move => *; apply smooth_translate_circ.
     + apply holo_fz.
   - move => x xbd.
     rewrite /h1/h2.
-    split; first by 
+    repeat replace_Derive.
+    split; by 
       rewrite cos_0 sin_0 cos_2PI sin_2PI. 
-    f_equal.
-    + under Derive_ext => t do rewrite cos_0.
-      symmetry.
-      under Derive_ext => t do rewrite cos_2PI.
-      auto.
-    + under Derive_ext => t do rewrite sin_0.
-      symmetry.
-      under Derive_ext => t do rewrite sin_2PI.
-      auto.
   - rewrite /c_circle' //= /Cmult //=.
-    move => t'.
-    f_equal.
-    + symmetry. 
-      apply: is_derive_unique. 
-      auto_derive; auto.
-      field_simplify.
-      auto.
-    + symmetry. 
-      apply: is_derive_unique. 
-      auto_derive; auto.
-      field_simplify.
-      auto.
+    move => t'; repeat replace_Derive; f_equal; field_simplify_eq; auto.
   - rewrite /c_circle' //= /Cmult //=.
-    move => t'.
-    f_equal.
-    + symmetry. 
-      apply: is_derive_unique. 
-      auto_derive; auto.
-      field_simplify.
-      auto.
-    + symmetry. 
-      apply: is_derive_unique. 
-      auto_derive; auto.
-      field_simplify.
-      auto.
+    move => t'; repeat replace_Derive; f_equal; field_simplify_eq; auto.
 Qed.
 End CauchyIntegral.
