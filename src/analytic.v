@@ -587,6 +587,7 @@ Qed.
 
 Definition PCoef := 1/(2*PI* Ci).
 
+Import Logic.Classical_Prop.
 Theorem holo_analytic : forall (f:C -> C) (r: posreal) D a z, 
   open D ->
   CHolo_on D f ->
@@ -783,7 +784,7 @@ Proof.
     rewrite path_independence.not_not_impl.
     case.
     + move => w. 
-      apply excluded_middle.
+      apply classic.
     + move => t tbd.
       rewrite /odisk.
       unfold_ball; unfold_alg.

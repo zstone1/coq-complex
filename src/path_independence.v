@@ -455,7 +455,7 @@ Open Scope C.
       
 (* I suspect that the proposition I'm working with 
 are actually decidable anyway, so this is probably overkill*)
-Axiom excluded_middle: forall P:Prop, P \/ ~P.
+Import Logic.Classical_Prop.
 
 Ltac expand_nice := 
     move => [[+ +] [ [?[?[?[??]]]] [?[?[?[??]]]]]];
@@ -496,7 +496,7 @@ Section PathIndependence .
       match (Rle_dec (Rmin a b) t, Rle_dec t (Rmax a b) ) with 
       | (left p1, left p2) => proj1_sig (@locally_2d_ex_dec 
           _ r t
-          (ltac:(move => *; apply (@excluded_middle _ ) )) 
+          (ltac:(move => *; apply (@classic _ ) )) 
           (@nicer t rbd (conj p1 p2) ))
       
       | _ => pos_half
