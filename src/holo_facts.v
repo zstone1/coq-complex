@@ -16,6 +16,177 @@ Import Logic.Classical_Prop.
 Require Import helpers complex_core path_independence 
   cauchy_integral compact_convergence analytic.
 
+  
+Ltac case_assumption :=
+    match goal with 
+    | |- (?A -> ?B) -> ?G => 
+      let H := fresh in 
+      have: A; last (move => H /(_ H) {H})
+    end.
+Ltac case_assumptions := repeat case_assumption.
+
+Definition PowCoef f a r n :=  PCoef * CInt (circC a r) 
+      (fun w => f(w)/(pow_n (w-a) (S n))).
+
+Definition abs_retract {K:AbsRing} {V : CompleteNormedModule K} (a_ : nat -> V):=
+  fun r => PSeries (fun n => norm (a_ n)) r.
+  
+Lemma CHolo_on_continuous: forall f D z, 
+  CHolo_on D f -> D z -> continuous f z.
+Proof.
+  move => f D z holo Dz.
+  move: holo.
+  case => f'.
+  move => /(_ z Dz). 
+  case.
+  rewrite /Holo => H _.
+  apply/cts_topology_1.
+  apply: ex_derive_continuous.
+  eexists.
+  eapply H.
+Qed.
+
+
+  
+Lemma holo_absolute_convergence: forall f D a (r r': posreal), 
+  open D ->
+  CHolo_on D f ->
+  (forall z, (Cball a r z) -> D z) -> 
+  r' < r ->
+      ex_pseries (fun n => norm (PowCoef f a r n )) r'.
+Proof.
+  move => f D a r r' openD holo subset r'bd.
+  rewrite /ex_pseries.
+  unfold_alg.
+  set h := (x in ex_series x).
+  apply: ex_series_le.
+  1: move => *; unfold_alg; right; reflexivity.
+  rewrite {}/h.
+  have:= @bounded_continuity _ _ (fun t => f (a + c_circle r t)) 0 (2*PI).
+  case_assumptions.
+  1: move => *. rewrite -/(continuous _ _); apply: continuous_comp.
+  1: apply: ex_derive_continuous; eexists; apply: (@contour_derive (circC a r));
+     simpl; auto.
+  1: apply: CHolo_on_continuous; eauto; apply subset;
+     rewrite /Cball; simplify_term (x in Cmod x);
+     rewrite c_circle_norm_2 Rabs_pos_eq; first (right; auto);
+     left; apply cond_pos.
+  move => [M HM].
+  have ?: 0 < r by apply cond_pos.
+  have ?: 0 < r' by apply cond_pos.
+  have ?: 0 <= r by left;apply cond_pos.
+  have ?: 0 <= r' by left;apply cond_pos.
+  apply: ex_series_le. {
+    move => n.
+    unfold_alg.
+    rewrite 2!Rabs_mult 2!Rabs_Rabsolu [Rabs (Cmod _)] Rabs_pos_eq.
+    2: apply Cmod_ge_0.
+    rewrite /PowCoef Cmod_mult.
+    apply Rmult_le_compat_l.
+    1: apply Rabs_pos.
+    apply Rmult_le_compat_l.
+    1: apply Cmod_ge_0.
+    rewrite Cmod_norm.
+    apply: CInt_abs_bound.
+    1: rewrite /Cdiv; auto_cts_on_contour.
+    1: apply: holo_ball_contour; eauto; rewrite /Cball in subset. 
+    1: move => w; rewrite Cmod_sym; apply subset.
+    move => t tbd.
+    set m := S n.
+    rewrite [m]lock.
+    unfold_alg.
+    simplify_term (_ + _ - _).
+    rewrite /Cdiv Cmod_mult Cmod_inv.
+    2: apply Cmod_gt_0; rewrite pow_n_abs_C c_circle_norm_2 pow_n_pow;
+       apply pow_lt; rewrite Rabs_pos_eq;[|left]; apply cond_pos.
+    rewrite pow_n_abs_C c_circle_norm_2 pow_n_pow -lock /m Rabs_pos_eq.
+    2: lra.
+    apply Rmult_le_compat_r.
+    1: left; apply Rinv_0_lt_compat; apply pow_lt; apply cond_pos.
+    left.
+    apply HM.
+    simpl in *; auto.
+  } 
+  apply: ex_series_Rabs .
+  apply: ex_series_DAlembert. 
+  3: {
+    eapply is_lim_seq_ext. {
+      move => n.
+      have?: (0 < r^n) by apply pow_lt; lra.
+      have?: (0 < r'^n) by apply pow_lt; lra.
+      have? := Rgt_2PI_0.
+      set m := S n; rewrite [m]lock.
+      rewrite ?(Rabs_mult, Rabs_Rinv) ?Rabs_Rabsolu. 
+      1: field_simplify; rewrite -/(pow_n _ _).
+      3,4: apply Rlt_0_neq_0; apply pow_lt; apply cond_pos.
+      1:rewrite -lock {}/m /= Rabs_mult; unfold_alg; field_simplify. 
+      reflexivity.
+      all: repeat split.
+      all: rewrite ?Rabs_pos_eq ?pow_n_pow; 
+           rewrite -?lock ?/m //=;
+           try left;
+           repeat apply Rlt_0_neq_0;
+           repeat apply Rmult_lt_0_compat;
+           try apply: Rinv_0_lt_compat;
+           repeat apply Rmult_lt_0_compat;
+           try apply lt_pow; 
+           try lra.
+      all: try (apply (@Rle_lt_trans _ (norm (f (a + c_circle r 0)))); 
+           try apply norm_ge_0;
+           try apply: HM; lra).
+      all: try (apply Cmod_gt_0; apply PCoef_neq_0).
+      all: try (under RInt_ext => x _ do (unfold_alg; rewrite c_circle'_norm);
+           rewrite RInt_const; unfold_alg;
+           rewrite Rabs_pos_eq; try apply: Rmult_lt_0_compat; lra).
+    }
+    apply is_lim_seq_const.
+  }
+  - rewrite ?Rabs_pos_eq; try lra.
+    rewrite -Rdiv_lt_1; lra.
+  - move => n. 
+      have?: (0 < r^n) by apply pow_lt; lra.
+      have?: (0 < r'^n) by apply pow_lt; lra.
+      have? := Rgt_2PI_0.
+      all: rewrite ?Rabs_pos_eq ?pow_n_pow; 
+           rewrite -?lock ?/m //=;
+           try left;
+           repeat apply Rlt_0_neq_0;
+           repeat apply Rmult_lt_0_compat;
+           try apply: Rinv_0_lt_compat;
+           repeat apply Rmult_lt_0_compat;
+           try apply lt_pow; 
+           try lra.
+      all: try (apply (@Rle_lt_trans _ (norm (f (a + c_circle r 0)))); 
+           try apply norm_ge_0;
+           try apply: HM; lra).
+      all: try (apply Cmod_gt_0; apply PCoef_neq_0).
+      all: try (under RInt_ext => x _ do (unfold_alg; rewrite c_circle'_norm);
+           rewrite RInt_const; unfold_alg;
+           rewrite Rabs_pos_eq; try apply: Rmult_lt_0_compat; lra).
+Qed.
+
+Lemma holo_pseries_compatly
+    eapply is_lim_seq_ext. {
+      move => n.
+      simpl.
+      unfold_alg.
+      rewrite 
+      rewrite /PowCoef 2!Cmod_mult.
+      simpl.
+
+
+    }
+    rewrite/is_lim_seq.
+    apply/filterlim_locally.
+    move => eps.
+
+
+  }
+
+
+
+
+
 Lemma Ceq_dec: forall (z w: C), z = w \/ z<> w.
 Proof. move => *. apply classic. Qed. 
 
@@ -40,17 +211,6 @@ Proof.
   apply open_neq_C.
   auto.
 Qed.
-
-Definition PowCoef f a r n :=  PCoef * CInt (circC a r) 
-      (fun w => f(w)/(pow_n (w-a) (S n))).
-
-Ltac case_assumption :=
-    match goal with 
-    | |- (?A -> ?B) -> ?G => 
-      let H := fresh in 
-      have: A; last (move => H /(_ H) {H})
-    end.
-Ltac case_assumptions := repeat case_assumption.
 
 Lemma sum_n_zero {G: AbelianGroup}: forall n, @sum_n G (fun=> zero) n = zero.
 Proof.

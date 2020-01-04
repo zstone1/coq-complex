@@ -585,8 +585,6 @@ Proof.
   apply ball_center.
 Qed.
 
-Definition PCoef := 1/(2*PI* Ci).
-
 Import Logic.Classical_Prop.
 Theorem holo_analytic : forall (f:C -> C) (r: posreal) D a z, 
   open D ->
